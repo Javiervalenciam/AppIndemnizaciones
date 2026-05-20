@@ -110,7 +110,7 @@ def register_callbacks(app) -> None:  # noqa: ANN001
         return (
             {"rows": rows, "nonce": n_clicks},
             dbc.Alert(
-                f"Se agregaron {len(rows)} periodo(s) extraído(s) a la tabla. "
+                f"Se agregaron {len(rows)} fila(s) anualizada(s) de CETIL a la tabla. "
                 "Revise IBL y errores antes de calcular.",
                 color="info",
             ),
@@ -281,19 +281,62 @@ def _decode_pdf_upload(contents: str | None, filename: str | None) -> bytes:
 
 
 def _build_cetil_summary(result: CetilExtractionResult) -> html.Div:
+    metadata = result.metadata
     trabajador = result.trabajador
+    entidad = result.entidad_empleadora
     nombre = trabajador.nombre_completo if trabajador else None
+    tipo_documento = trabajador.tipo_documento if trabajador else None
     documento = trabajador.documento if trabajador else None
+    fecha_nacimiento = trabajador.fecha_nacimiento.isoformat() if trabajador and trabajador.fecha_nacimiento else None
+    genero = trabajador.genero if trabajador and trabajador.genero else "No detectado"
+    nombre_entidad = entidad.nombre_entidad_empleadora if entidad else None
+    nit_entidad = entidad.nit_entidad_empleadora if entidad else None
+    fecha_vigencia = (
+        entidad.fecha_vigencia_sistema_general_pensiones.isoformat()
+        if entidad and entidad.fecha_vigencia_sistema_general_pensiones
+        else None
+    )
     years = sorted({factor.anio for factor in result.factores_salariales})
     warnings = result.advertencias or ["Revise manualmente la tabla antes de calcular."]
 
     return html.Div(
         [
+            html.H4("Datos extraídos del CETIL", className="cetil-summary__title"),
             dbc.Row(
                 [
+                    dbc.Col(
+                        _summary_metric("Número CETIL", metadata.numero_cetil if metadata else "No detectado"),
+                        md=3,
+                    ),
+                    dbc.Col(
+                        _summary_metric(
+                            "Ciudad CETIL",
+                            metadata.ciudad_expedicion if metadata and metadata.ciudad_expedicion else "No detectada",
+                        ),
+                        md=3,
+                    ),
+                    dbc.Col(
+                        _summary_metric(
+                            "Fecha CETIL",
+                            metadata.fecha_expedicion_cetil.isoformat()
+                            if metadata and metadata.fecha_expedicion_cetil
+                            else "No detectada",
+                        ),
+                        md=3,
+                    ),
                     dbc.Col(_summary_metric("Trabajador", nombre or "No detectado"), md=3),
+                    dbc.Col(_summary_metric("Tipo documento", tipo_documento or "No detectado"), md=3),
                     dbc.Col(_summary_metric("Documento", documento or "No detectado"), md=3),
+                    dbc.Col(_summary_metric("Fecha nacimiento", fecha_nacimiento or "No detectada"), md=3),
+                    dbc.Col(_summary_metric("Género", genero), md=3),
+                    dbc.Col(_summary_metric("Entidad empleadora", nombre_entidad or "No detectada"), md=3),
+                    dbc.Col(_summary_metric("NIT entidad", nit_entidad or "No detectado"), md=3),
+                    dbc.Col(_summary_metric("Vigencia pensional", fecha_vigencia or "No detectada"), md=3),
                     dbc.Col(_summary_metric("Periodos", str(len(result.periodos_certificados))), md=3),
+                    dbc.Col(
+                        _summary_metric("Filas anuales", str(len(result.filas_liquidables_anuales))),
+                        md=3,
+                    ),
                     dbc.Col(
                         _summary_metric(
                             "Años salariales",

@@ -261,14 +261,27 @@
   font-variant-numeric: tabular-nums;
 }
 
+.metric-card .metric-card__helper {
+  color: var(--color-muted);
+  font-size: var(--font-size-sm);
+}
+
 .metric-card.metric-card--accent {
   background-color: var(--color-primary);
   border-color: var(--color-primary);
+  min-height: 128px;
+  justify-content: center;
 }
 
 .metric-card.metric-card--accent .metric-card__label,
-.metric-card.metric-card--accent .metric-card__value {
+.metric-card.metric-card--accent .metric-card__value,
+.metric-card.metric-card--accent .metric-card__helper {
   color: var(--color-on-primary);
+}
+
+.metric-card.metric-card--accent .metric-card__value {
+  font-size: 28px;
+  font-weight: 700;
 }
 
 /* ---------- Periodos (filas dinámicas) ----------------------------------- */
