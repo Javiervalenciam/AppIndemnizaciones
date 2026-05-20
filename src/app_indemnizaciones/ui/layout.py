@@ -3,7 +3,8 @@ from __future__ import annotations
 import dash_bootstrap_components as dbc
 from dash import dcc, html
 
-from app_indemnizaciones.ui.components import empty_periodos_placeholder, step_card, upload_zone
+from app_indemnizaciones.ui.components import step_card, upload_zone
+from app_indemnizaciones.ui.tables import build_periodos_table
 
 
 def build_layout() -> html.Div:
@@ -62,11 +63,55 @@ def build_layout() -> html.Div:
             ),
             step_card(
                 3,
+                "Cargar certificado CETIL",
+                [
+                    dcc.Store(id="cetil-store"),
+                    upload_zone(
+                        "upload-cetil",
+                        hint="Arrastra o selecciona certificado CETIL en PDF",
+                    ),
+                    html.Div(id="cetil-upload-status", className="mt-3"),
+                    html.Div(id="cetil-summary", className="mt-3"),
+                    html.Div(
+                        [
+                            dbc.Button(
+                                "Usar datos extraídos en la tabla de periodos",
+                                id="btn-use-cetil-data",
+                                color="secondary",
+                            ),
+                        ],
+                        className="step-actions",
+                    ),
+                    html.Div(id="cetil-apply-status", className="mt-3"),
+                ],
+                subtitle="Extrae datos revisables. No calcula ni reemplaza información manual.",
+                extra_class="mt-3",
+            ),
+            step_card(
+                4,
                 "Periodos laborados",
                 [
-                    html.P("En el MVP inicial se cargan manualmente. Luego se poblarán desde CETIL."),
-                    dbc.Button("Agregar periodo", id="btn-add-periodo", color="secondary", className="mb-3"),
-                    html.Div(empty_periodos_placeholder(), id="periodos-container"),
+                    dcc.Store(id="periodos-store", data=[]),
+                    dcc.Store(id="periodos-import-store"),
+                    html.P(
+                        "Agrega, revisa o corrige los periodos antes de calcular la liquidación.",
+                        className="mb-2",
+                    ),
+                    html.P("Usa fechas en formato AAAA-MM-DD.", className="periodos-help"),
+                    html.Div(id="periodos-alert", className="mb-3"),
+                    html.Div(
+                        [
+                            dbc.Button("Agregar periodo", id="btn-add-periodo", color="secondary"),
+                            dbc.Button(
+                                "Eliminar seleccionado",
+                                id="btn-delete-periodo",
+                                color="danger",
+                                outline=True,
+                            ),
+                        ],
+                        className="periodos-toolbar",
+                    ),
+                    build_periodos_table(),
                     html.Div(
                         [
                             dbc.Button(
@@ -78,7 +123,7 @@ def build_layout() -> html.Div:
                         className="step-actions",
                     ),
                 ],
-                subtitle="Revise fechas y salarios antes de calcular.",
+                subtitle="Agrega, revisa o corrige los periodos antes de calcular la liquidación.",
                 extra_class="mt-3",
             ),
             dcc.Store(id="resultado-store"),
