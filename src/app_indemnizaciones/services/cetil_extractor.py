@@ -1,7 +1,11 @@
 from __future__ import annotations
 
 import re
+from collections import Counter
 from collections.abc import Iterable
+from dataclasses import replace
+from datetime import date
+from decimal import Decimal
 from io import BytesIO
 from pathlib import Path
 
@@ -10,11 +14,14 @@ import fitz  # PyMuPDF
 from app_indemnizaciones.domain.exceptions import CetilExtractionError, InvalidCetilFileError
 from app_indemnizaciones.services.cetil_models import (
     MESES,
+    CetilEntidadEmpleadora,
     CetilExtractionResult,
     CetilFactorSalarial,
+    CetilMetadata,
     CetilPeriodoCertificado,
     CetilTrabajador,
 )
+from app_indemnizaciones.services.period_normalizer import normalize_cetil_to_annual_periods
 from app_indemnizaciones.utils.dates import parse_date
 from app_indemnizaciones.utils.money import parse_money
 
@@ -24,7 +31,9 @@ except ImportError:  # pragma: no cover - exercised only when optional dependenc
     pdfplumber = None
 
 _DATE_RE = re.compile(r"\b\d{2}[-/]\d{2}[-/]\d{4}\b")
-_MONEY_RE = re.compile(r"(?<![\w-])(?:\d{1,3}(?:[.,]\d{3})+|\d+)(?:[.,]\d{2})(?![\w-])")
+_MONEY_RE = re.compile(
+    r"(?<![\w-])\$?\s*(?:\d{1,3}(?:[.,]\d{3})+|\d+)(?:[.,]\d{2})?(?![\w-])"
+)
 _FACTOR_HEADER_RE = re.compile(r"FACTORES\s+SALARIALES\s+(?P<anio>\d{4})", re.IGNORECASE)
 _PERIODO_LINE_RE = re.compile(
     r"(?P<desde>\d{2}[-/]\d{2}[-/]\d{4})\s+"
@@ -33,6 +42,21 @@ _PERIODO_LINE_RE = re.compile(
     re.IGNORECASE,
 )
 _TIPO_EMPLEADO_RE = re.compile(r"\b(P[ÚU]BLICO|PRIVADO)\b", re.IGNORECASE)
+_SPANISH_MONTHS = {
+    "enero": 1,
+    "febrero": 2,
+    "marzo": 3,
+    "abril": 4,
+    "mayo": 5,
+    "junio": 6,
+    "julio": 7,
+    "agosto": 8,
+    "septiembre": 9,
+    "setiembre": 9,
+    "octubre": 10,
+    "noviembre": 11,
+    "diciembre": 12,
+}
 
 
 class CetilExtractor:
@@ -60,11 +84,13 @@ class CetilExtractor:
         full_text = "\n".join(text_pages.values())
         advertencias: list[str] = []
 
+        metadata = self._extract_metadata(full_text, advertencias)
         trabajador = self._extract_trabajador(full_text, advertencias)
         entidad_certificadora = self._extract_section_value(full_text, "DATOS DE LA ENTIDAD CERTIFICADORA")
-        entidad_empleadora = self._extract_section_value(full_text, "DATOS DE LA ENTIDAD EMPLEADORA")
+        entidad_empleadora = self._extract_entidad_empleadora(full_text, advertencias)
         periodos = self._extract_periodos(text_pages, advertencias)
         factores = self._extract_factores(text_pages, advertencias)
+        factores = _apply_ibl_sugerido(factores, advertencias)
 
         if not periodos:
             advertencias.append("No se detectaron periodos certificados.")
@@ -79,7 +105,8 @@ class CetilExtractor:
                 "La asociación de factores salariales al IBL queda pendiente de confirmación funcional."
             )
 
-        return CetilExtractionResult(
+        result = CetilExtractionResult(
+            metadata=metadata,
             trabajador=trabajador,
             entidad_empleadora=entidad_empleadora,
             entidad_certificadora=entidad_certificadora,
@@ -88,6 +115,12 @@ class CetilExtractor:
             advertencias=_dedupe(advertencias),
             texto_paginas=text_pages,
             confidence_score=self._confidence_score(periodos, factores),
+        )
+        filas, annual_warnings = normalize_cetil_to_annual_periods(result)
+        return replace(
+            result,
+            filas_liquidables_anuales=filas,
+            advertencias=_dedupe([*result.advertencias, *annual_warnings]),
         )
 
     @staticmethod
@@ -114,19 +147,50 @@ class CetilExtractor:
         value = match.group("value").strip()
         return value[:180] or None
 
+    def _extract_metadata(self, text: str, advertencias: list[str]) -> CetilMetadata:
+        numero_match = re.search(
+            r"(?:CETIL\s*)?N[Oº°]?\.?\s*:?\s*(?P<numero>\d{8,})",
+            text,
+            re.IGNORECASE,
+        )
+        expedition_match = re.search(
+            r"Ciudad\s+y\s+fecha\s+de\s+expedici[oó]n\s*:?\s*"
+            r"(?P<ciudad>[A-ZÁÉÍÓÚÑ .-]+?)\s*,\s*"
+            r"(?P<fecha>[A-Za-zÁÉÍÓÚÑáéíóúñ]+\s+\d{1,2}\s+de\s+\d{4})",
+            text,
+            re.IGNORECASE,
+        )
+
+        fecha_expedicion = None
+        if expedition_match:
+            fecha_expedicion = _parse_spanish_text_date(expedition_match.group("fecha"), advertencias)
+
+        return CetilMetadata(
+            numero_cetil=numero_match.group("numero") if numero_match else None,
+            ciudad_expedicion=expedition_match.group("ciudad").strip().upper()
+            if expedition_match
+            else None,
+            fecha_expedicion_cetil=fecha_expedicion,
+        )
+
     def _extract_trabajador(self, text: str, advertencias: list[str]) -> CetilTrabajador | None:
         documento_match = re.search(
             r"(?:TIPO\s+DOCUMENTO|TIPO\s+DE\s+DOCUMENTO|DOCUMENTO)\s*:?\s*"
             r"(?P<tipo>C\.?C\.?|CC|CE|TI|PA|C[EÉ]DULA)?\s*"
-            r"(?:N[Oº°.]?|N[ÚU]MERO)?\s*:?\s*(?P<documento>\d[\d. -]{3,})",
+            r"(?:N[Oº°.]?|N[ÚU]MERO)?\s*:?\s*(?P<documento>\d[\d., -]{3,})",
             text,
             re.IGNORECASE,
         )
         fecha_match = re.search(
-            r"FECHA\s+(?:DE\s+)?NACIMIENTO\s*:?\s*(?P<fecha>\d{2}[-/]\d{2}[-/]\d{4})",
+            r"FECHA\s+(?:DE\s+)?NACIMIENTO\s*:?\s*"
+            r"(?P<fecha>(?:\d{2}[-/]\d{2}[-/]\d{4})|"
+            r"(?:[A-Za-zÁÉÍÓÚÑáéíóúñ]+\s+\d{1,2}\s+de\s+\d{4}))",
             text,
             re.IGNORECASE,
         )
+        genero = _field_value(text, "GÉNERO") or _field_value(text, "GENERO") or _field_value(text, "SEXO")
+        if not genero:
+            advertencias.append("No se detectó campo explícito de género en el CETIL.")
 
         primer_apellido = _field_value(text, "PRIMER APELLIDO")
         segundo_apellido = _field_value(text, "SEGUNDO APELLIDO")
@@ -142,7 +206,12 @@ class CetilExtractor:
         fecha_nacimiento = None
         if fecha_match:
             try:
-                fecha_nacimiento = parse_date(fecha_match.group("fecha"))
+                fecha_text = fecha_match.group("fecha")
+                fecha_nacimiento = (
+                    _parse_spanish_text_date(fecha_text, advertencias)
+                    if " de " in fecha_text.lower()
+                    else parse_date(fecha_text)
+                )
             except ValueError:
                 advertencias.append("No fue posible normalizar la fecha de nacimiento detectada.")
 
@@ -150,8 +219,14 @@ class CetilExtractor:
             advertencias.append("No se detectaron datos básicos del trabajador con alta confianza.")
             return None
 
+        tipo_documento = (
+            _field_value(text, "TIPO DE DOCUMENTO")
+            or _field_value(text, "TIPO DOCUMENTO")
+            or (documento_match.group("tipo") if documento_match else None)
+        )
+
         return CetilTrabajador(
-            tipo_documento=_normalize_doc_type(documento_match.group("tipo")) if documento_match else None,
+            tipo_documento=_normalize_doc_type(tipo_documento),
             documento=_clean_document(documento_match.group("documento")) if documento_match else None,
             primer_apellido=primer_apellido,
             segundo_apellido=segundo_apellido,
@@ -159,6 +234,38 @@ class CetilExtractor:
             segundo_nombre=segundo_nombre,
             nombre_completo=nombre_completo,
             fecha_nacimiento=fecha_nacimiento,
+            genero=genero,
+        )
+
+    def _extract_entidad_empleadora(
+        self,
+        text: str,
+        advertencias: list[str],
+    ) -> CetilEntidadEmpleadora | None:
+        section = _section_text(text, "DATOS DE LA ENTIDAD EMPLEADORA")
+        if not section:
+            advertencias.append("No se detectó sección de entidad empleadora en el CETIL.")
+            return None
+
+        nombre = (
+            _field_value(section, "NOMBRE ENTIDAD EMPLEADORA")
+            or _field_value(section, "NOMBRE DE LA ENTIDAD EMPLEADORA")
+            or _field_value(section, "RAZÓN SOCIAL")
+            or _field_value(section, "RAZON SOCIAL")
+            or _first_meaningful_section_line(section)
+        )
+        nit = _extract_nit(section)
+        fecha_vigencia = _extract_vigencia_pensional(section, advertencias)
+
+        if not nombre:
+            advertencias.append("No se detectó nombre de entidad empleadora.")
+        if not nit:
+            advertencias.append("No se detectó NIT de entidad empleadora.")
+
+        return CetilEntidadEmpleadora(
+            nombre_entidad_empleadora=nombre,
+            nit_entidad_empleadora=nit,
+            fecha_vigencia_sistema_general_pensiones=fecha_vigencia,
         )
 
     def _extract_periodos(
@@ -208,15 +315,21 @@ class CetilExtractor:
                     raw_line = _concept_context(block, concepto)
                     if not raw_line:
                         continue
-                    monthly_values = _monthly_values(raw_line, advertencias, anio, concepto)
+                    values = _money_values(raw_line)
+                    monthly_values = _monthly_values(values, advertencias, anio, concepto)
+                    selected_value = _select_suggested_value(values)
+                    is_total_devengado = concepto.lower() == "total devengado"
                     factores.append(
                         CetilFactorSalarial(
                             anio=anio,
                             concepto=concepto,
                             valores_mensuales=monthly_values,
-                            total_devengado_mensual=monthly_values
-                            if concepto.lower() == "total devengado"
-                            else {},
+                            valores_encontrados=values,
+                            asignacion_basica_mensual=None
+                            if is_total_devengado
+                            else selected_value,
+                            total_devengado=selected_value if is_total_devengado else None,
+                            total_devengado_mensual=monthly_values if is_total_devengado else {},
                             fuente_pagina=page_number,
                             raw_text=raw_line,
                         )
@@ -265,9 +378,12 @@ def _parse_period_remainder(resto: str) -> dict[str, str | int | None]:
     cargo = _extract_labeled_value(text_without_tail_numbers, "CARGO")
 
     if not cargo and text_without_tail_numbers:
-        cargo = text_without_tail_numbers
-    if entidad and cargo:
-        cargo = cargo.replace(entidad, "").strip() or cargo
+        cargo = re.split(
+            r"\bENTIDAD\s+RESPONSABLE\b\s*:?",
+            text_without_tail_numbers,
+            maxsplit=1,
+            flags=re.IGNORECASE,
+        )[0].strip()
 
     return {
         "tipo_vinculacion": tipo_vinculacion,
@@ -307,12 +423,11 @@ def _concept_context(block: str, concept: str) -> str | None:
 
 
 def _monthly_values(
-    text: str,
+    values: list[Decimal],
     advertencias: list[str],
     anio: int,
     concepto: str,
-) -> dict[str, object]:
-    values = [parse_money(value) for value in _MONEY_RE.findall(text)]
+) -> dict[str, Decimal | None]:
     if len(values) != 12:
         advertencias.append(
             "No fue posible asociar todos los valores salariales a meses con alta confianza "
@@ -321,12 +436,163 @@ def _monthly_values(
     return {month: values[index] if index < len(values) else None for index, month in enumerate(MESES)}
 
 
+def _money_values(text: str) -> list[Decimal]:
+    values: list[Decimal] = []
+    for raw in _MONEY_RE.findall(text):
+        value = parse_money(raw)
+        if value is not None:
+            values.append(value)
+    return values
+
+
+def _select_suggested_value(values: list[Decimal]) -> Decimal | None:
+    positive_values = [value for value in values if value > 0]
+    if not positive_values:
+        return None
+
+    counts = Counter(positive_values)
+    most_common = counts.most_common()
+    if not most_common:
+        return None
+    top_count = most_common[0][1]
+    tied = [value for value, count in most_common if count == top_count]
+    return tied[0] if len(tied) == 1 else None
+
+
+def _apply_ibl_sugerido(
+    factores: list[CetilFactorSalarial],
+    advertencias: list[str],
+) -> list[CetilFactorSalarial]:
+    by_year: dict[int, list[CetilFactorSalarial]] = {}
+    for factor in factores:
+        by_year.setdefault(factor.anio, []).append(factor)
+
+    selected_by_year: dict[int, Decimal | None] = {}
+    for anio, year_factors in by_year.items():
+        assignment = _find_factor(year_factors, "ASIGNACIÓN BÁSICA MENSUAL")
+        total = _find_factor(year_factors, "Total Devengado")
+        selected = _select_ibl_from_factor(assignment, anio, "ASIGNACIÓN BÁSICA MENSUAL", advertencias)
+        if selected is None:
+            selected = _select_ibl_from_factor(total, anio, "Total Devengado", advertencias)
+        if selected is None:
+            advertencias.append(f"No se detectó IBL para el año {anio}. Debe ingresarse manualmente.")
+        selected_by_year[anio] = selected
+
+    return [replace(factor, ibl_sugerido=selected_by_year.get(factor.anio)) for factor in factores]
+
+
+def _select_ibl_from_factor(
+    factor: CetilFactorSalarial | None,
+    anio: int,
+    label: str,
+    advertencias: list[str],
+) -> Decimal | None:
+    if factor is None:
+        return None
+
+    positive_values = [value for value in factor.valores_encontrados if value > 0]
+    if not positive_values:
+        return None
+
+    counts = Counter(positive_values)
+    most_common = counts.most_common()
+    top_count = most_common[0][1]
+    tied = [value for value, count in most_common if count == top_count]
+    if len(tied) > 1:
+        advertencias.append(
+            f"No se detectó IBL confiable para el año {anio}; empate entre valores de {label}."
+        )
+        return None
+    if len(set(positive_values)) > 1:
+        advertencias.append(
+            f"IBL sugerido por valor positivo más frecuente en el año {anio}; "
+            "se detectó posible valor atípico y debe revisarse manualmente."
+        )
+    return tied[0]
+
+
+def _find_factor(
+    factores: list[CetilFactorSalarial],
+    concept: str,
+) -> CetilFactorSalarial | None:
+    for factor in factores:
+        if factor.concepto.lower() == concept.lower():
+            return factor
+    return None
+
+
+def _parse_spanish_text_date(text: str, advertencias: list[str]) -> date | None:
+    match = re.search(
+        r"(?P<month>[A-Za-zÁÉÍÓÚÑáéíóúñ]+)\s+(?P<day>\d{1,2})\s+de\s+(?P<year>\d{4})",
+        text,
+        re.IGNORECASE,
+    )
+    if not match:
+        advertencias.append(f"No fue posible normalizar fecha textual: {text}.")
+        return None
+
+    month = _SPANISH_MONTHS.get(match.group("month").lower())
+    if month is None:
+        advertencias.append(f"No fue posible reconocer el mes en fecha textual: {text}.")
+        return None
+    return date(int(match.group("year")), month, int(match.group("day")))
+
+
 def _field_value(text: str, label: str) -> str | None:
     match = re.search(rf"{re.escape(label)}\s*:?\s*(?P<value>[A-ZÁÉÍÓÚÑ ]+)", text, re.IGNORECASE)
     if not match:
         return None
     value = " ".join(match.group("value").split())
     return value.title() if value else None
+
+
+def _section_text(text: str, heading: str) -> str | None:
+    pattern = re.compile(
+        rf"{re.escape(heading)}\s*\n(?P<section>.*?)(?=\n[A-ZÁÉÍÓÚÑ ]{{5,}}\n|$)",
+        re.IGNORECASE | re.DOTALL,
+    )
+    match = pattern.search(text)
+    if not match:
+        return None
+    section = match.group("section").strip()
+    return section or None
+
+
+def _first_meaningful_section_line(section: str) -> str | None:
+    for line in section.splitlines():
+        value = " ".join(line.strip().split())
+        if not value:
+            continue
+        if re.search(r"\b(?:NIT|FECHA|VIGENCIA)\b", value, re.IGNORECASE):
+            continue
+        return value.title()
+    return None
+
+
+def _extract_nit(text: str) -> str | None:
+    match = re.search(r"\bNIT\b\s*:?\s*(?P<nit>\d[\d., -]{5,})(?:-\d)?", text, re.IGNORECASE)
+    if not match:
+        return None
+    return re.sub(r"\D", "", match.group("nit"))
+
+
+def _extract_vigencia_pensional(text: str, advertencias: list[str]) -> date | None:
+    match = re.search(
+        r"VIGENCIA\s+(?:DEL\s+)?SISTEMA\s+GENERAL\s+DE\s+PENSIONES\s*:?\s*"
+        r"(?P<fecha>\d{2}[-/]\d{2}[-/]\d{4}|[A-Za-zÁÉÍÓÚÑáéíóúñ]+\s+\d{1,2}\s+de\s+\d{4})",
+        text,
+        re.IGNORECASE,
+    )
+    if not match:
+        return None
+    fecha_text = match.group("fecha")
+    try:
+        if " de " in fecha_text.lower():
+            return _parse_spanish_text_date(fecha_text, advertencias)
+        return parse_date(fecha_text)
+    except ValueError:
+        advertencias.append("No fue posible normalizar la fecha de vigencia pensional detectada.")
+        return None
 
 
 def _build_nombre_completo(*parts: str | None) -> str | None:
