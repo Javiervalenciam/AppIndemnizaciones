@@ -1,0 +1,35 @@
+{
+  "project": "AppIndemnizaciones",
+  "language": "python",
+  "framework": "dash",
+  "pythonVersion": "3.11",
+  "entrypoint": "app.py",
+  "sourceRoot": "src",
+  "testsRoot": "tests",
+  "dataPolicy": {
+    "storePersonalDataInRepo": false,
+    "storeUploadedFilesInGit": false,
+    "requireManualReviewAfterCetilExtraction": true
+  },
+  "calculation": {
+    "defaultDayCountConvention": "commercial_360",
+    "ppc": 0.0227,
+    "weeksPerYear": 52.14,
+    "monthsPerYear": 12,
+    "ipcActualStrategy": "latest_valid_record_unless_user_selects_date"
+  },
+  "ipcImport": {
+    "preferredSheet": "Datos",
+    "supportedFormats": ["xlsx", "xls", "csv"],
+    "acceptedColumnSchemas": [
+      {
+        "dateColumn": "Fecha",
+        "indexColumn": "Índice de Precios al Consumidor (IPC)"
+      },
+      {
+        "periodColumn": "Año(aaaa)-Mes(mm)",
+        "indexColumn": "Índice"
+      }
+    ]
+  }
+}

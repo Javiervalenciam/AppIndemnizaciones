@@ -1,0 +1,39 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Virtual env
+.venv/
+venv/
+
+# VSCode
+.vscode/
+
+# Pytest
+.pytest_cache/
+
+# Ruff
+.ruff_cache/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Build
+dist/
+build/
+*.egg-info/
+
+# Local env
+.env
+
+# Logs
+*.log
+
+# IDE
+.idea/
+
+# Excel temporales
+~$*.xlsx

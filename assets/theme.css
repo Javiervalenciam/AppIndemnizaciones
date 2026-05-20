@@ -1,0 +1,309 @@
+/* =========================================================================
+   AppIndemnizaciones — Estilos de componentes
+   Construye encima de Bootstrap + tokens de styles.css.
+   No sobrescribe IDs del layout.
+   ========================================================================= */
+
+/* ---------- Contenedor general ------------------------------------------- */
+
+.app-shell {
+  padding-top: var(--space-6);
+  padding-bottom: var(--space-7);
+}
+
+.app-header {
+  margin-bottom: var(--space-5);
+}
+
+.app-header h1 {
+  margin-bottom: var(--space-2);
+}
+
+.app-header .lead {
+  color: var(--color-muted);
+  font-size: var(--font-size-md);
+  margin-bottom: 0;
+}
+
+/* ---------- Step Card (tarjeta tipo paso) -------------------------------- */
+
+.step-card {
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  padding: var(--space-5);
+  margin-bottom: var(--space-4);
+  transition: box-shadow 160ms ease;
+}
+
+.step-card:hover {
+  box-shadow: var(--shadow-md);
+}
+
+.step-card .step-card__header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+}
+
+.step-card .step-card__badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background-color: var(--color-primary);
+  color: var(--color-on-primary);
+  font-weight: 500;
+  font-size: var(--font-size-base);
+  flex-shrink: 0;
+}
+
+.step-card .step-card__title {
+  font-size: var(--font-size-md);
+  font-weight: 500;
+  color: var(--color-text-strong);
+  margin: 0;
+}
+
+.step-card .step-card__subtitle {
+  font-size: var(--font-size-sm);
+  color: var(--color-muted);
+  margin: 0;
+}
+
+/* ---------- Upload zone (Dash dcc.Upload) -------------------------------- */
+
+.upload-zone {
+  width: 100%;
+  min-height: 96px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  border: 1.5px dashed var(--color-secondary);
+  border-radius: var(--radius-md);
+  background-color: var(--color-primary-soft);
+  color: var(--color-primary-dark);
+  font-size: var(--font-size-base);
+  padding: var(--space-4);
+  cursor: pointer;
+  transition: background-color 120ms ease, border-color 120ms ease;
+}
+
+.upload-zone:hover {
+  background-color: #DCE6F4;
+  border-color: var(--color-primary);
+}
+
+/* ---------- Botones (sobre dbc.Button) ----------------------------------- */
+
+.btn,
+.btn-primary,
+.btn-secondary,
+.btn-success,
+.btn-danger,
+.btn-warning {
+  border-radius: var(--radius-md) !important;
+  font-weight: 500;
+  letter-spacing: 0.2px;
+  padding: 8px 18px;
+  transition: box-shadow 120ms ease, transform 60ms ease, background-color 120ms ease;
+}
+
+.btn-primary {
+  background-color: var(--color-primary) !important;
+  border-color: var(--color-primary) !important;
+}
+
+.btn-primary:hover,
+.btn-primary:focus {
+  background-color: var(--color-primary-dark) !important;
+  border-color: var(--color-primary-dark) !important;
+  box-shadow: var(--shadow-sm);
+}
+
+.btn-secondary {
+  background-color: var(--color-secondary) !important;
+  border-color: var(--color-secondary) !important;
+  color: var(--color-on-primary) !important;
+}
+
+.btn-success {
+  background-color: var(--color-success) !important;
+  border-color: var(--color-success) !important;
+}
+
+.btn:active {
+  transform: translateY(1px);
+}
+
+/* ---------- Inputs (Bootstrap form-control) ------------------------------ */
+
+.form-control,
+.input-group .form-control {
+  border-radius: var(--radius-md) !important;
+  border-color: var(--color-border);
+  font-size: var(--font-size-base);
+  padding: 8px 12px;
+  background-color: var(--color-surface);
+}
+
+.form-control:focus {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px rgba(0, 59, 115, 0.12);
+}
+
+/* ---------- Alerts (sobre dbc.Alert) ------------------------------------- */
+
+.alert {
+  border-radius: var(--radius-md) !important;
+  border: 1px solid transparent;
+  font-size: var(--font-size-base);
+  padding: var(--space-3) var(--space-4);
+}
+
+.alert-success {
+  background-color: var(--color-success-soft) !important;
+  color: var(--color-success) !important;
+  border-color: var(--color-success) !important;
+}
+
+.alert-warning {
+  background-color: var(--color-warning-soft) !important;
+  color: var(--color-warning) !important;
+  border-color: var(--color-warning) !important;
+}
+
+.alert-danger {
+  background-color: var(--color-danger-soft) !important;
+  color: var(--color-danger) !important;
+  border-color: var(--color-danger) !important;
+}
+
+.alert-info {
+  background-color: var(--color-info-soft) !important;
+  color: var(--color-info) !important;
+  border-color: var(--color-info) !important;
+}
+
+/* ---------- Tablas ------------------------------------------------------- */
+
+.resultado-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  font-size: var(--font-size-sm);
+  background-color: var(--color-surface);
+}
+
+.resultado-table thead th {
+  background-color: var(--color-primary-soft);
+  color: var(--color-primary-dark);
+  font-weight: 500;
+  text-align: left;
+  padding: var(--space-3);
+  border-bottom: 1px solid var(--color-border);
+  white-space: nowrap;
+}
+
+.resultado-table tbody td {
+  padding: var(--space-3);
+  border-bottom: 1px solid var(--color-divider);
+  vertical-align: middle;
+}
+
+.resultado-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.resultado-table tbody tr:hover {
+  background-color: var(--color-surface-alt);
+}
+
+.resultado-table .num,
+.resultado-table .money {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- Tarjetas de métrica (totales) -------------------------------- */
+
+.metric-card {
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: var(--space-4);
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  height: 100%;
+}
+
+.metric-card .metric-card__label {
+  font-size: var(--font-size-sm);
+  color: var(--color-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+}
+
+.metric-card .metric-card__value {
+  font-size: var(--font-size-lg);
+  font-weight: 500;
+  color: var(--color-text-strong);
+  font-variant-numeric: tabular-nums;
+}
+
+.metric-card.metric-card--accent {
+  background-color: var(--color-primary);
+  border-color: var(--color-primary);
+}
+
+.metric-card.metric-card--accent .metric-card__label,
+.metric-card.metric-card--accent .metric-card__value {
+  color: var(--color-on-primary);
+}
+
+/* ---------- Periodos (filas dinámicas) ----------------------------------- */
+
+.periodo-row {
+  background-color: var(--color-surface-alt);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: var(--space-3);
+  margin-bottom: var(--space-2);
+}
+
+.periodo-empty {
+  color: var(--color-muted);
+  font-style: italic;
+  padding: var(--space-4);
+  text-align: center;
+  border: 1px dashed var(--color-border);
+  border-radius: var(--radius-md);
+  background-color: var(--color-surface-alt);
+}
+
+/* ---------- Acciones de paso (botones agrupados) ------------------------- */
+
+.step-actions {
+  display: flex;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  margin-top: var(--space-4);
+}
+
+/* ---------- Responsive --------------------------------------------------- */
+
+@media (max-width: 768px) {
+  .step-card { padding: var(--space-4); }
+  .resultado-table { font-size: 12px; }
+  .metric-card .metric-card__value { font-size: var(--font-size-md); }
+}
