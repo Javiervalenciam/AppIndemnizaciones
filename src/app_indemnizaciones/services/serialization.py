@@ -16,6 +16,8 @@ from decimal import Decimal
 from typing import Any
 
 from app_indemnizaciones.domain.models import ResultadoLiquidacion, ResultadoPeriodo
+from app_indemnizaciones.services.period_normalizer import normalize_period_row
+from app_indemnizaciones.utils.validators import validate_period_rows
 
 
 def _periodo_to_dict(row: ResultadoPeriodo) -> dict[str, Any]:
@@ -74,3 +76,11 @@ def resultado_from_dict(data: dict[str, Any]) -> ResultadoLiquidacion:
         ppc=Decimal(data["ppc"]),
         isv=Decimal(data["isv"]),
     )
+
+
+def serialize_periods(rows: list[dict[str, Any]] | None) -> list[dict[str, str]]:
+    return validate_period_rows([normalize_period_row(row) for row in rows or []])
+
+
+def deserialize_periods(rows: list[dict[str, Any]] | None) -> list[dict[str, str]]:
+    return validate_period_rows([normalize_period_row(row) for row in rows or []])

@@ -12,3 +12,11 @@ class IpcNotFoundError(AppIndemnizacionesError):
 
 class LiquidacionError(AppIndemnizacionesError):
     """Raised when calculation input is invalid."""
+
+
+class CetilExtractionError(AppIndemnizacionesError):
+    """Raised when a CETIL PDF cannot be extracted."""
+
+
+class InvalidCetilFileError(CetilExtractionError):
+    """Raised when the uploaded CETIL file is not a supported PDF."""

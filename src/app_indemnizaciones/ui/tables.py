@@ -11,12 +11,43 @@ from __future__ import annotations
 from decimal import Decimal
 
 import dash_bootstrap_components as dbc
-from dash import html
+from dash import dash_table, html
 
 from app_indemnizaciones.domain.models import ResultadoLiquidacion, ResultadoPeriodo
 from app_indemnizaciones.ui.components import metric_card
 
 _CENT = Decimal("0.01")
+
+PERIODOS_COLUMNS = [
+    {"name": "ID", "id": "id", "type": "text", "editable": False},
+    {"name": "Fecha inicio", "id": "fecha_inicio", "type": "text"},
+    {"name": "Fecha fin", "id": "fecha_fin", "type": "text"},
+    {"name": "IBL reportado", "id": "ibl_reportado", "type": "text"},
+    {"name": "Cargo", "id": "cargo", "type": "text"},
+    {"name": "Entidad", "id": "entidad", "type": "text"},
+    {"name": "Fuente", "id": "fuente", "presentation": "dropdown", "type": "text"},
+    {"name": "Observaciones", "id": "observaciones", "type": "text"},
+    {"name": "Estado", "id": "estado_validacion", "type": "text", "editable": False},
+    {"name": "Errores / advertencias", "id": "errores", "type": "text", "editable": False},
+]
+
+PERIODOS_STYLE_CONDITIONAL = [
+    {
+        "if": {"filter_query": "{estado_validacion} = ERROR"},
+        "backgroundColor": "#FCE8E6",
+        "color": "#7A1B15",
+    },
+    {
+        "if": {"filter_query": "{estado_validacion} = ADVERTENCIA"},
+        "backgroundColor": "#FFF4E0",
+        "color": "#6F4200",
+    },
+    {
+        "if": {"filter_query": "{estado_validacion} = OK"},
+        "backgroundColor": "#E6F4EA",
+        "color": "#0F5F2A",
+    },
+]
 
 
 def _fmt_money(value: Decimal) -> str:
@@ -26,6 +57,55 @@ def _fmt_money(value: Decimal) -> str:
 
 def _fmt_decimal(value: Decimal, places: int = 4) -> str:
     return f"{value:,.{places}f}"
+
+
+def build_periodos_table(data: list[dict[str, str]] | None = None) -> dash_table.DataTable:
+    return dash_table.DataTable(
+        id="periodos-table",
+        data=data or [],
+        columns=PERIODOS_COLUMNS,
+        editable=True,
+        row_selectable="multi",
+        selected_rows=[],
+        page_size=8,
+        sort_action="native",
+        filter_action="native",
+        dropdown={
+            "fuente": {
+                "options": [
+                    {"label": "manual", "value": "manual"},
+                    {"label": "cetil", "value": "cetil"},
+                    {"label": "importado", "value": "importado"},
+                ]
+            }
+        },
+        style_as_list_view=True,
+        style_table={"overflowX": "auto"},
+        style_cell={
+            "fontFamily": "Roboto, Helvetica Neue, Arial, sans-serif",
+            "fontSize": "13px",
+            "padding": "10px",
+            "textAlign": "left",
+            "minWidth": "120px",
+            "whiteSpace": "normal",
+            "height": "auto",
+        },
+        style_header={
+            "backgroundColor": "#E6EEF7",
+            "color": "#002247",
+            "fontWeight": "600",
+            "borderBottom": "1px solid #E1E5EB",
+        },
+        style_data={
+            "borderBottom": "1px solid #ECEFF3",
+        },
+        style_cell_conditional=[
+            {"if": {"column_id": "id"}, "minWidth": "72px", "width": "72px", "maxWidth": "80px"},
+            {"if": {"column_id": "estado_validacion"}, "minWidth": "96px", "width": "112px"},
+            {"if": {"column_id": "errores"}, "minWidth": "260px"},
+        ],
+        style_data_conditional=PERIODOS_STYLE_CONDITIONAL,
+    )
 
 
 def _periodo_row(row: ResultadoPeriodo, idx: int) -> html.Tr:

@@ -1,10 +1,18 @@
 from __future__ import annotations
 
+import sys
+from pathlib import Path
+
 import dash
 import dash_bootstrap_components as dbc
 
-from app_indemnizaciones.ui.callbacks import register_callbacks
-from app_indemnizaciones.ui.layout import build_layout
+ROOT_DIR = Path(__file__).resolve().parent
+SRC_DIR = ROOT_DIR / "src"
+if str(SRC_DIR) not in sys.path:
+    sys.path.insert(0, str(SRC_DIR))
+
+from app_indemnizaciones.ui.callbacks import register_callbacks  # noqa: E402
+from app_indemnizaciones.ui.layout import build_layout  # noqa: E402
 
 
 def create_app() -> dash.Dash:
