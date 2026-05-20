@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from decimal import Decimal, getcontext
 
-from app_indemnizaciones.config import CalculationConfig
+from app_indemnizaciones.config import MONTHLY_TO_WEEKLY_DIVISOR, CalculationConfig
 from app_indemnizaciones.domain.exceptions import LiquidacionError
 from app_indemnizaciones.domain.models import (
     PeriodoLaborado,
@@ -74,12 +74,12 @@ class LiquidacionService:
         else:
             raise LiquidacionError(f"Convención de días no soportada: {day_count}")
 
-        ipc = self.ipc_repository.obtener_ipc(periodo.fecha_inicio, fecha_liquidacion)
+        anio = periodo.anio or periodo.fecha_inicio.year
+        ipc_inicial_info = self.ipc_repository.get_annual_average_ipc_info(anio)
+        ipc_actual = self.ipc_repository.get_current_ipc()
         semanas = Decimal(dias) / Decimal(7)
-        ibc_actualizado = periodo.ibl_reportado * (ipc.ipc_actual / ipc.ipc_inicial)
-        ibc_semanal_actualizado = (
-            ibc_actualizado * Decimal(self.config.months_per_year) / Decimal(str(self.config.weeks_per_year))
-        )
+        ibc_actualizado = periodo.ibl_reportado * (ipc_actual.indice / ipc_inicial_info.average)
+        ibc_semanal_actualizado = ibc_actualizado / MONTHLY_TO_WEEKLY_DIVISOR
 
         return ResultadoPeriodo(
             fecha_inicio=periodo.fecha_inicio,
@@ -87,12 +87,16 @@ class LiquidacionService:
             ibl_reportado=periodo.ibl_reportado,
             dias=dias,
             semanas=semanas,
-            periodo_ipc_inicial=ipc.periodo_inicial,
-            ipc_inicial=ipc.ipc_inicial,
-            periodo_ipc_actual=ipc.periodo_actual,
-            ipc_actual=ipc.ipc_actual,
+            periodo_ipc_inicial=f"PROMEDIO ANUAL {anio}",
+            ipc_inicial=ipc_inicial_info.average,
+            periodo_ipc_actual=ipc_actual.periodo,
+            ipc_actual=ipc_actual.indice,
             ibc_actualizado=ibc_actualizado,
             ibc_semanal_actualizado=ibc_semanal_actualizado,
+            anio=anio,
+            ipc_inicial_origen=f"PROMEDIO ANUAL {anio}",
+            ipc_meses_usados=ipc_inicial_info.months_count,
+            advertencias_ipc=tuple(ipc_inicial_info.warnings),
             cargo=periodo.cargo,
             entidad=periodo.entidad,
         )
