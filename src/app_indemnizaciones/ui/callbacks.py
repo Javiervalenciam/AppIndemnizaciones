@@ -14,7 +14,10 @@ from app_indemnizaciones.services.cetil_models import (
     cetil_result_from_dict,
     cetil_result_to_dict,
 )
-from app_indemnizaciones.services.excel_exporter import build_liquidacion_xlsx
+from app_indemnizaciones.services.excel_exporter import (
+    build_ipc_export_info,
+    build_liquidacion_xlsx,
+)
 from app_indemnizaciones.services.ipc_loader import IpcRepository
 from app_indemnizaciones.services.liquidacion_service import LiquidacionService
 from app_indemnizaciones.services.period_normalizer import (
@@ -228,13 +231,21 @@ def register_callbacks(app) -> None:  # noqa: ANN001
         Output("download-liquidacion", "data"),
         Input("btn-download", "n_clicks"),
         State("resultado-store", "data"),
+        State("ipc-store", "data"),
+        State("cetil-store", "data"),
         prevent_initial_call=True,
     )
-    def descargar_excel(n_clicks, resultado_data):
+    def descargar_excel(n_clicks, resultado_data, ipc_data, cetil_data):
         if not resultado_data:
             return no_update
         resultado = resultado_from_dict(resultado_data)
-        xlsx = build_liquidacion_xlsx(resultado)
+        repo = IpcRepository.from_dataframe(pd.DataFrame(ipc_data)) if ipc_data else None
+        cetil_result = cetil_result_from_dict(cetil_data) if cetil_data else None
+        xlsx = build_liquidacion_xlsx(
+            resultado,
+            cetil_result=cetil_result,
+            ipc_info=build_ipc_export_info(repo) if repo else None,
+        )
         return dcc.send_bytes(xlsx, "liquidacion_isv.xlsx")
 
 
