@@ -89,6 +89,13 @@ def test_cargo_y_entidad_vacios_generan_advertencia_no_error():
     assert "entidad vacía" in result["errores"]
 
 
+def test_no_false_entity_empty_warning():
+    result = validate_period_row(_row(cargo="Coordinador", entidad="MUNICIPIO DE BOCHALEMA"))
+
+    assert result["estado_validacion"] == "OK"
+    assert "entidad vacía" not in result["errores"]
+
+
 def test_duplicado_exacto_genera_advertencia():
     rows = validate_period_rows([_row(id="a"), _row(id="b")])
 

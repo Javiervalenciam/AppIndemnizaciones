@@ -12,10 +12,24 @@ def build_layout() -> html.Div:
         [
             html.Header(
                 [
-                    html.H1("AppIndemnizaciones"),
-                    html.P(
-                        "MVP para importar IPC histórico, validar datos y calcular liquidación.",
-                        className="lead",
+                    html.Div(
+                        [
+                            html.Span("Liquidación ISV", className="app-header__eyebrow"),
+                            html.H1("AppIndemnizaciones"),
+                            html.P(
+                                "Liquidación pensional con trazabilidad CETIL, IPC anual y exportación auditables.",
+                                className="lead",
+                            ),
+                        ],
+                        className="app-header__content",
+                    ),
+                    html.Div(
+                        [
+                            html.Span("Python", className="app-badge"),
+                            html.Span("Dash", className="app-badge"),
+                            html.Span("CETIL", className="app-badge"),
+                        ],
+                        className="app-header__meta",
                     ),
                 ],
                 className="app-header",
@@ -41,20 +55,33 @@ def build_layout() -> html.Div:
                     dbc.Col(
                         step_card(
                             2,
-                            "Trabajador",
+                            "Cargar certificado CETIL",
                             [
-                                dbc.Input(
-                                    id="trabajador-nombre",
-                                    placeholder="Nombre",
-                                    className="mb-2",
+                                dcc.Store(id="cetil-store"),
+                                upload_zone(
+                                    "upload-cetil",
+                                    hint="Arrastra o selecciona certificado CETIL en PDF",
                                 ),
-                                dbc.Input(
-                                    id="trabajador-documento",
-                                    placeholder="Documento",
-                                    className="mb-2",
+                                html.Div(id="cetil-upload-status", className="mt-3"),
+                                html.Div(
+                                    [
+                                        dbc.Button(
+                                            "Agregar periodos CETIL a la tabla",
+                                            id="btn-use-cetil-data",
+                                            color="secondary",
+                                        ),
+                                        dbc.Button(
+                                            "Limpiar CETIL / Nueva liquidación",
+                                            id="btn-limpiar-cetil",
+                                            color="secondary",
+                                            outline=True,
+                                        ),
+                                    ],
+                                    className="step-actions",
                                 ),
+                                html.Div(id="cetil-apply-status", className="mt-3"),
                             ],
-                            subtitle="Datos mínimos para preparar la liquidación.",
+                            subtitle="Extrae datos revisables. No calcula sin validación manual.",
                         ),
                         md=6,
                     ),
@@ -63,38 +90,21 @@ def build_layout() -> html.Div:
             ),
             step_card(
                 3,
-                "Cargar certificado CETIL",
+                "Datos extraídos del CETIL",
                 [
-                    dcc.Store(id="cetil-store"),
-                    upload_zone(
-                        "upload-cetil",
-                        hint="Arrastra o selecciona certificado CETIL en PDF",
-                    ),
-                    html.Div(id="cetil-upload-status", className="mt-3"),
                     html.Div(id="cetil-summary", className="mt-3"),
-                    html.Div(
-                        [
-                            dbc.Button(
-                                "Usar datos extraídos en la tabla de periodos",
-                                id="btn-use-cetil-data",
-                                color="secondary",
-                            ),
-                        ],
-                        className="step-actions",
-                    ),
-                    html.Div(id="cetil-apply-status", className="mt-3"),
                 ],
-                subtitle="Extrae datos revisables. No calcula ni reemplaza información manual.",
+                subtitle="Información detectada en encabezado, empleado y entidad empleadora.",
                 extra_class="mt-3",
             ),
             step_card(
                 4,
-                "Periodos laborados",
+                "Cuadro de liquidación anual",
                 [
                     dcc.Store(id="periodos-store", data=[]),
                     dcc.Store(id="periodos-import-store"),
                     html.P(
-                        "Agrega, revisa o corrige los periodos antes de calcular la liquidación.",
+                        "Periodos anualizados desde CETIL. Revise fechas e IBL antes de calcular.",
                         className="mb-2",
                     ),
                     html.P("Usa fechas en formato AAAA-MM-DD.", className="periodos-help"),
@@ -123,7 +133,7 @@ def build_layout() -> html.Div:
                         className="step-actions",
                     ),
                 ],
-                subtitle="Agrega, revisa o corrige los periodos antes de calcular la liquidación.",
+                subtitle="Periodos anualizados desde CETIL. Revise fechas e IBL antes de calcular.",
                 extra_class="mt-3",
             ),
             dcc.Store(id="resultado-store"),
@@ -132,6 +142,14 @@ def build_layout() -> html.Div:
                 type="circle",
             ),
             dcc.Download(id="download-liquidacion"),
+            html.Footer(
+                [
+                    html.Span("© 2026 ", className="app-footer__mark"),
+                    html.Strong("Javier Andrés Valencia Moreno"),
+                    html.Span(". CEO · Colombia ®"),
+                ],
+                className="app-footer",
+            ),
         ],
         fluid=True,
         className="app-shell",

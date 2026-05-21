@@ -59,13 +59,16 @@ def info_alert(text: str, *, color: str = "info") -> dbc.Alert:
     return dbc.Alert(text, color=color, className="mb-0")
 
 
-def metric_card(label: str, value: str, *, accent: bool = False) -> html.Div:
+def metric_card(label: str, value: str, *, accent: bool = False, helper: str | None = None) -> html.Div:
     cls = "metric-card metric-card--accent" if accent else "metric-card"
+    children: list[Any] = [
+        html.Span(label, className="metric-card__label"),
+        html.Span(value, className="metric-card__value"),
+    ]
+    if helper:
+        children.append(html.Span(helper, className="metric-card__helper"))
     return html.Div(
-        [
-            html.Span(label, className="metric-card__label"),
-            html.Span(value, className="metric-card__value"),
-        ],
+        children,
         className=cls,
     )
 

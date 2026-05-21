@@ -1,82 +1,52 @@
-/* =========================================================================
-   AppIndemnizaciones — Sistema de diseño base
-   Material-inspired, paleta Azul Institucional Colombia.
-   No reemplaza Bootstrap; lo complementa.
-   ========================================================================= */
-
-/* ---------- Tipografía local Roboto ----------------------------------------
-   Si los archivos woff2 no están todavía en assets/fonts/, el navegador usa
-   el fallback de sistema (Arial/sans-serif) gracias a `font-display: swap`.
-   Ver assets/fonts/README.md para descargar Roboto Regular/Medium/Bold.
----------------------------------------------------------------------------- */
-
-@font-face {
-  font-family: "Roboto";
-  font-style: normal;
-  font-weight: 400;
-  font-display: swap;
-  src: url("/assets/fonts/Roboto-Regular.woff2") format("woff2");
-}
-
-@font-face {
-  font-family: "Roboto";
-  font-style: normal;
-  font-weight: 500;
-  font-display: swap;
-  src: url("/assets/fonts/Roboto-Medium.woff2") format("woff2");
-}
-
-@font-face {
-  font-family: "Roboto";
-  font-style: normal;
-  font-weight: 700;
-  font-display: swap;
-  src: url("/assets/fonts/Roboto-Bold.woff2") format("woff2");
-}
-
-/* ---------- Tokens de diseño ---------------------------------------------- */
+@import url("https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap");
 
 :root {
-  /* Paleta Azul Institucional Colombia */
-  --color-primary: #003B73;
-  --color-primary-dark: #002247;
-  --color-primary-soft: #E6EEF7;
-  --color-secondary: #4A6FA5;
-  --color-on-primary: #FFFFFF;
+  --font-family-base: "Poppins", "Inter", "Roboto", Arial, sans-serif;
 
-  /* Superficies */
-  --color-background: #F5F7FA;
-  --color-surface: #FFFFFF;
-  --color-surface-alt: #FAFBFD;
-  --color-border: #E1E5EB;
-  --color-divider: #ECEFF3;
+  --color-bg-1: #eef4ff;
+  --color-bg-2: #f8fbff;
+  --color-primary: #0057b8;
+  --color-primary-dark: #03346c;
+  --color-primary-soft: rgba(0, 87, 184, 0.1);
+  --color-primary-2: #4f46e5;
+  --color-secondary: #546179;
+  --color-accent: #8b5cf6;
+  --color-cyan: #06b6d4;
+  --color-on-primary: #ffffff;
 
-  /* Texto */
-  --color-text: #1F2937;
-  --color-text-strong: #0F172A;
-  --color-muted: #6B7280;
+  --color-background: #eef4ff;
+  --color-surface: rgba(255, 255, 255, 0.74);
+  --color-surface-alt: rgba(248, 251, 255, 0.76);
+  --color-border: rgba(148, 163, 184, 0.24);
+  --color-divider: rgba(148, 163, 184, 0.18);
 
-  /* Estados */
-  --color-success: #1B873F;
-  --color-success-soft: #E6F4EA;
-  --color-warning: #B26A00;
-  --color-warning-soft: #FFF4E0;
-  --color-danger: #B3261E;
-  --color-danger-soft: #FCE8E6;
-  --color-info: #1A73E8;
-  --color-info-soft: #E8F0FE;
+  --color-text: #223047;
+  --color-text-strong: #07172f;
+  --color-muted: #64748b;
 
-  /* Radios */
-  --radius-sm: 4px;
-  --radius-md: 8px;
-  --radius-lg: 12px;
+  --color-success: #16a34a;
+  --color-success-soft: rgba(22, 163, 74, 0.12);
+  --color-warning: #b45309;
+  --color-warning-soft: rgba(245, 158, 11, 0.16);
+  --color-danger: #dc2626;
+  --color-danger-soft: rgba(220, 38, 38, 0.12);
+  --color-info: #2563eb;
+  --color-info-soft: rgba(37, 99, 235, 0.12);
 
-  /* Sombras (Material elevation 1, 2, 4) */
-  --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.06), 0 1px 3px rgba(15, 23, 42, 0.04);
-  --shadow-md: 0 2px 4px rgba(15, 23, 42, 0.06), 0 4px 12px rgba(15, 23, 42, 0.06);
-  --shadow-lg: 0 6px 16px rgba(15, 23, 42, 0.10), 0 12px 24px rgba(15, 23, 42, 0.08);
+  --glass-bg: rgba(255, 255, 255, 0.62);
+  --glass-bg-strong: rgba(255, 255, 255, 0.82);
+  --glass-border: rgba(255, 255, 255, 0.46);
+  --glass-shadow: 0 24px 80px rgba(15, 23, 42, 0.14);
 
-  /* Espaciado (escala de 4) */
+  --radius-sm: 10px;
+  --radius-md: 14px;
+  --radius-lg: 18px;
+  --radius-xl: 24px;
+
+  --shadow-sm: 0 10px 30px rgba(15, 23, 42, 0.08);
+  --shadow-md: 0 18px 54px rgba(15, 23, 42, 0.12);
+  --shadow-lg: 0 30px 90px rgba(15, 23, 42, 0.16);
+
   --space-1: 4px;
   --space-2: 8px;
   --space-3: 12px;
@@ -85,47 +55,118 @@
   --space-6: 32px;
   --space-7: 48px;
 
-  /* Tipografía */
-  --font-family-base: "Roboto", "Helvetica Neue", Arial, sans-serif;
   --font-size-sm: 13px;
   --font-size-base: 14px;
   --font-size-md: 16px;
   --font-size-lg: 20px;
-  --font-size-xl: 28px;
+  --font-size-xl: 34px;
 
   --line-height-base: 1.5;
   --letter-spacing-base: 0;
+  --transition-fast: 160ms ease;
+  --transition-medium: 260ms ease;
+
+  --mouse-x: 50%;
+  --mouse-y: 35%;
+  --float-x: 0px;
+  --float-y: 0px;
 }
 
-/* ---------- Reset suave + tipografía global ------------------------------- */
+html {
+  min-height: 100%;
+  background: var(--color-bg-1);
+}
 
-html, body {
-  background-color: var(--color-background);
+body {
+  min-height: 100%;
+  background:
+    radial-gradient(circle at var(--mouse-x) var(--mouse-y), rgba(6, 182, 212, 0.2), transparent 30vw),
+    radial-gradient(circle at calc(100% - var(--mouse-x)) 12%, rgba(139, 92, 246, 0.18), transparent 32vw),
+    linear-gradient(135deg, var(--color-bg-1) 0%, var(--color-bg-2) 42%, #eff6ff 100%);
   color: var(--color-text);
   font-family: var(--font-family-base);
   font-size: var(--font-size-base);
   line-height: var(--line-height-base);
+  overflow-x: hidden;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
-h1, h2, h3, h4, h5 {
+body::before,
+body::after {
+  content: "";
+  position: fixed;
+  inset: auto;
+  z-index: -2;
+  pointer-events: none;
+  filter: blur(34px);
+  opacity: 0.68;
+  transform: translate3d(var(--float-x), var(--float-y), 0);
+}
+
+body::before {
+  width: 54vw;
+  height: 54vw;
+  left: -18vw;
+  top: -16vw;
+  background:
+    radial-gradient(circle at 32% 30%, rgba(0, 87, 184, 0.28), transparent 45%),
+    radial-gradient(circle at 72% 66%, rgba(6, 182, 212, 0.22), transparent 42%);
+}
+
+body::after {
+  width: 50vw;
+  height: 50vw;
+  right: -16vw;
+  bottom: -18vw;
+  background:
+    radial-gradient(circle at 45% 35%, rgba(139, 92, 246, 0.26), transparent 45%),
+    radial-gradient(circle at 62% 70%, rgba(79, 70, 229, 0.18), transparent 44%);
+}
+
+h1,
+h2,
+h3,
+h4,
+h5 {
   color: var(--color-text-strong);
-  font-weight: 500;
+  font-weight: 700;
   letter-spacing: var(--letter-spacing-base);
   margin-bottom: var(--space-3);
 }
 
-h1 { font-size: var(--font-size-xl); }
-h2 { font-size: 22px; }
+h1 { font-size: var(--font-size-xl); line-height: 1.05; }
+h2 { font-size: 24px; }
 h3 { font-size: var(--font-size-lg); }
-h4 { font-size: var(--font-size-md); font-weight: 500; }
+h4 { font-size: var(--font-size-md); font-weight: 600; }
 
 p {
   color: var(--color-text);
   margin-bottom: var(--space-3);
 }
 
+a,
+button,
+.upload-zone,
+.dash-table-container {
+  -webkit-tap-highlight-color: transparent;
+}
+
+:focus-visible {
+  outline: 3px solid rgba(6, 182, 212, 0.36);
+  outline-offset: 3px;
+}
+
 .text-muted-soft {
   color: var(--color-muted);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    scroll-behavior: auto !important;
+    transition: none !important;
+  }
 }

@@ -17,6 +17,12 @@ venv/
 # Ruff
 .ruff_cache/
 
+# Type/check/test caches
+.mypy_cache/
+.coverage
+coverage.xml
+htmlcov/
+
 # OS
 .DS_Store
 Thumbs.db
@@ -25,15 +31,30 @@ Thumbs.db
 dist/
 build/
 *.egg-info/
+*.egg
 
 # Local env
 .env
+.env.*
+!.env.example
 
 # Logs
 *.log
 
 # IDE
 .idea/
+
+# Node/frontend artifacts
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Temporary files
+*.tmp
+*.temp
+tmp/
+temp/
 
 # Excel temporales
 ~$*.xlsx

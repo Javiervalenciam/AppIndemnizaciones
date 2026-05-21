@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from decimal import Decimal
+
+MONTHLY_TO_WEEKLY_DIVISOR = Decimal("4.345")
 
 
 @dataclass(frozen=True)

@@ -14,7 +14,11 @@ from app_indemnizaciones.services.cetil_models import (
     cetil_result_from_dict,
     cetil_result_to_dict,
 )
-from app_indemnizaciones.services.excel_exporter import build_liquidacion_xlsx
+from app_indemnizaciones.services.excel_exporter import (
+    build_ipc_export_info,
+    build_liquidacion_filename,
+    build_liquidacion_xlsx,
+)
 from app_indemnizaciones.services.ipc_loader import IpcRepository
 from app_indemnizaciones.services.liquidacion_service import LiquidacionService
 from app_indemnizaciones.services.period_normalizer import (
@@ -27,6 +31,11 @@ from app_indemnizaciones.services.serialization import (
     resultado_from_dict,
     resultado_to_dict,
     serialize_periods,
+)
+from app_indemnizaciones.ui.state import (
+    EMPTY_CETIL_STATE,
+    EMPTY_PERIODOS_STATE,
+    EMPTY_RESULTADO_STATE,
 )
 from app_indemnizaciones.ui.tables import (
     PERIODOS_STYLE_CONDITIONAL,
@@ -67,6 +76,15 @@ def register_callbacks(app) -> None:  # noqa: ANN001
     @app.callback(
         Output("cetil-store", "data"),
         Output("cetil-upload-status", "children"),
+        Output("periodos-import-store", "data", allow_duplicate=True),
+        Output("periodos-store", "data", allow_duplicate=True),
+        Output("periodos-table", "data", allow_duplicate=True),
+        Output("periodos-table", "style_data_conditional", allow_duplicate=True),
+        Output("periodos-table", "selected_rows", allow_duplicate=True),
+        Output("periodos-alert", "children", allow_duplicate=True),
+        Output("resultado-store", "data", allow_duplicate=True),
+        Output("resultado-liquidacion", "children", allow_duplicate=True),
+        Output("cetil-apply-status", "children", allow_duplicate=True),
         Input("upload-cetil", "contents"),
         State("upload-cetil", "filename"),
         prevent_initial_call=True,
@@ -78,9 +96,49 @@ def register_callbacks(app) -> None:  # noqa: ANN001
             return (
                 cetil_result_to_dict(result),
                 dbc.Alert(f"CETIL procesado: {filename or 'archivo PDF'}.", color="success"),
+                None,
+                list(EMPTY_PERIODOS_STATE),
+                list(EMPTY_PERIODOS_STATE),
+                PERIODOS_STYLE_CONDITIONAL,
+                [],
+                None,
+                EMPTY_RESULTADO_STATE,
+                None,
+                None,
             )
         except (CetilExtractionError, InvalidCetilFileError, ValueError) as exc:
-            return no_update, dbc.Alert(str(exc), color="danger")
+            return (
+                EMPTY_CETIL_STATE,
+                dbc.Alert(str(exc), color="danger"),
+                None,
+                list(EMPTY_PERIODOS_STATE),
+                list(EMPTY_PERIODOS_STATE),
+                PERIODOS_STYLE_CONDITIONAL,
+                [],
+                None,
+                EMPTY_RESULTADO_STATE,
+                None,
+                None,
+            )
+
+    @app.callback(
+        Output("cetil-store", "data", allow_duplicate=True),
+        Output("cetil-upload-status", "children", allow_duplicate=True),
+        Output("cetil-summary", "children", allow_duplicate=True),
+        Output("periodos-import-store", "data", allow_duplicate=True),
+        Output("periodos-store", "data", allow_duplicate=True),
+        Output("periodos-table", "data", allow_duplicate=True),
+        Output("periodos-table", "style_data_conditional", allow_duplicate=True),
+        Output("periodos-table", "selected_rows", allow_duplicate=True),
+        Output("periodos-alert", "children", allow_duplicate=True),
+        Output("resultado-store", "data", allow_duplicate=True),
+        Output("resultado-liquidacion", "children", allow_duplicate=True),
+        Output("cetil-apply-status", "children", allow_duplicate=True),
+        Input("btn-limpiar-cetil", "n_clicks"),
+        prevent_initial_call=True,
+    )
+    def clear_cetil_session(n_clicks: int | None):
+        return _empty_cetil_ui_outputs()
 
     @app.callback(
         Output("cetil-summary", "children"),
@@ -110,7 +168,7 @@ def register_callbacks(app) -> None:  # noqa: ANN001
         return (
             {"rows": rows, "nonce": n_clicks},
             dbc.Alert(
-                f"Se agregaron {len(rows)} periodo(s) extraído(s) a la tabla. "
+                f"Se agregaron {len(rows)} fila(s) anualizada(s) de CETIL a la tabla. "
                 "Revise IBL y errores antes de calcular.",
                 color="info",
             ),
@@ -228,14 +286,22 @@ def register_callbacks(app) -> None:  # noqa: ANN001
         Output("download-liquidacion", "data"),
         Input("btn-download", "n_clicks"),
         State("resultado-store", "data"),
+        State("ipc-store", "data"),
+        State("cetil-store", "data"),
         prevent_initial_call=True,
     )
-    def descargar_excel(n_clicks, resultado_data):
+    def descargar_excel(n_clicks, resultado_data, ipc_data, cetil_data):
         if not resultado_data:
             return no_update
         resultado = resultado_from_dict(resultado_data)
-        xlsx = build_liquidacion_xlsx(resultado)
-        return dcc.send_bytes(xlsx, "liquidacion_isv.xlsx")
+        repo = IpcRepository.from_dataframe(pd.DataFrame(ipc_data)) if ipc_data else None
+        cetil_result = cetil_result_from_dict(cetil_data) if cetil_data else None
+        xlsx = build_liquidacion_xlsx(
+            resultado,
+            cetil_result=cetil_result,
+            ipc_info=build_ipc_export_info(repo) if repo else None,
+        )
+        return dcc.send_bytes(xlsx, build_liquidacion_filename(cetil_result))
 
 
 def _remove_selected_rows(
@@ -267,6 +333,23 @@ def _build_periodos_alert(rows: list[dict[str, str]]) -> dbc.Alert | None:
     return dbc.Alert("Periodos listos para calcular.", color="success")
 
 
+def _empty_cetil_ui_outputs() -> tuple:
+    return (
+        EMPTY_CETIL_STATE,
+        None,
+        None,
+        None,
+        list(EMPTY_PERIODOS_STATE),
+        list(EMPTY_PERIODOS_STATE),
+        PERIODOS_STYLE_CONDITIONAL,
+        [],
+        None,
+        EMPTY_RESULTADO_STATE,
+        None,
+        None,
+    )
+
+
 def _decode_pdf_upload(contents: str | None, filename: str | None) -> bytes:
     if not contents:
         raise InvalidCetilFileError("No se recibió el archivo CETIL.")
@@ -281,35 +364,96 @@ def _decode_pdf_upload(contents: str | None, filename: str | None) -> bytes:
 
 
 def _build_cetil_summary(result: CetilExtractionResult) -> html.Div:
+    metadata = result.metadata
     trabajador = result.trabajador
+    entidad = result.entidad_empleadora
     nombre = trabajador.nombre_completo if trabajador else None
+    tipo_documento = trabajador.tipo_documento if trabajador else None
     documento = trabajador.documento if trabajador else None
+    fecha_nacimiento = trabajador.fecha_nacimiento.isoformat() if trabajador and trabajador.fecha_nacimiento else None
+    genero = trabajador.genero if trabajador and trabajador.genero else "No detectado"
+    nombre_entidad = entidad.nombre_entidad_empleadora if entidad else None
+    nit_entidad = entidad.nit_entidad_empleadora if entidad else None
+    fecha_vigencia = (
+        entidad.fecha_vigencia_sistema_general_pensiones.isoformat()
+        if entidad and entidad.fecha_vigencia_sistema_general_pensiones
+        else None
+    )
     years = sorted({factor.anio for factor in result.factores_salariales})
     warnings = result.advertencias or ["Revise manualmente la tabla antes de calcular."]
 
     return html.Div(
         [
-            dbc.Row(
-                [
-                    dbc.Col(_summary_metric("Trabajador", nombre or "No detectado"), md=3),
-                    dbc.Col(_summary_metric("Documento", documento or "No detectado"), md=3),
-                    dbc.Col(_summary_metric("Periodos", str(len(result.periodos_certificados))), md=3),
-                    dbc.Col(
-                        _summary_metric(
-                            "Años salariales",
-                            ", ".join(str(year) for year in years) if years else "No detectados",
-                        ),
-                        md=3,
-                    ),
-                ],
-                className="g-3",
-            ),
             html.Div(
                 [
-                    html.H4("Advertencias de extracción", className="cetil-summary__title"),
-                    html.Ul([html.Li(warning) for warning in warnings], className="cetil-summary__warnings"),
+                    html.Div(
+                        [
+                            html.Span("Trabajador", className="cetil-profile__label"),
+                            html.H3(nombre or "No detectado", className="cetil-profile__name"),
+                            html.Div(
+                                [
+                                    html.Span(f"{tipo_documento or 'No detectado'} {documento or ''}".strip()),
+                                    html.Span(fecha_nacimiento or "Fecha nacimiento no detectada"),
+                                    html.Span(f"Género: {genero}"),
+                                ],
+                                className="cetil-profile__meta",
+                            ),
+                        ],
+                        className="cetil-profile",
+                    ),
+                    html.Div(
+                        [
+                            _summary_metric("Número CETIL", metadata.numero_cetil if metadata else "No detectado"),
+                            _summary_metric(
+                                "Fecha CETIL",
+                                metadata.fecha_expedicion_cetil.isoformat()
+                                if metadata and metadata.fecha_expedicion_cetil
+                                else "No detectada",
+                            ),
+                            _summary_metric(
+                                "Ciudad CETIL",
+                                metadata.ciudad_expedicion
+                                if metadata and metadata.ciudad_expedicion
+                                else "No detectada",
+                            ),
+                        ],
+                        className="cetil-summary-card",
+                    ),
+                    html.Div(
+                        [
+                            _summary_metric("Entidad empleadora", nombre_entidad or "No detectada"),
+                            _summary_metric("NIT", nit_entidad or "No detectado"),
+                            _summary_metric("Vigencia pensional", fecha_vigencia or "No detectada"),
+                        ],
+                        className="cetil-summary-card",
+                    ),
+                    html.Div(
+                        [
+                            _summary_metric("Periodos", str(len(result.periodos_certificados))),
+                            _summary_metric("Filas anuales", str(len(result.filas_liquidables_anuales))),
+                            _summary_metric(
+                                "Años salariales",
+                                ", ".join(str(year) for year in years) if years else "No detectados",
+                            ),
+                        ],
+                        className="cetil-summary-card",
+                    ),
+                ],
+                className="cetil-summary-grid",
+            ),
+            html.Details(
+                [
+                    html.Summary(
+                        f"Advertencias de extracción ({len(warnings)})",
+                        className="cetil-summary__warnings-summary",
+                    ),
+                    html.Ul(
+                        [html.Li(warning) for warning in warnings],
+                        className="cetil-summary__warnings",
+                    ),
                 ],
                 className="cetil-summary__warnings-box",
+                open=bool([warning for warning in warnings if "No se detectaron periodos" in warning]),
             ),
         ],
         className="cetil-summary",
@@ -322,5 +466,5 @@ def _summary_metric(label: str, value: str) -> html.Div:
             html.Span(label, className="metric-card__label"),
             html.Span(value, className="metric-card__value"),
         ],
-        className="metric-card",
+        className="metric-card metric-card--compact",
     )

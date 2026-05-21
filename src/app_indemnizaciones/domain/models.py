@@ -17,6 +17,7 @@ class PeriodoLaborado:
     fecha_inicio: date
     fecha_fin: date
     ibl_reportado: Decimal
+    anio: int | None = None
     cargo: str | None = None
     entidad: str | None = None
     fuente: str | None = None
@@ -50,6 +51,10 @@ class ResultadoPeriodo:
     ipc_actual: Decimal
     ibc_actualizado: Decimal
     ibc_semanal_actualizado: Decimal
+    anio: int | None = None
+    ipc_inicial_origen: str | None = None
+    ipc_meses_usados: int | None = None
+    advertencias_ipc: tuple[str, ...] = ()
     cargo: str | None = None
     entidad: str | None = None
 

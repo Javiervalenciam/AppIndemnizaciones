@@ -25,6 +25,15 @@ class IpcImportSummary:
     ipc_actual: Decimal
 
 
+@dataclass(frozen=True)
+class IpcAnnualAverageInfo:
+    year: int
+    average: Decimal
+    months_count: int
+    missing_months: list[int]
+    warnings: list[str]
+
+
 def _clean_column_name(value: object) -> str:
     text = str(value or "").strip().lower()
     text = "".join(
@@ -180,6 +189,36 @@ class IpcRepository:
 
     def ultimo_registro(self) -> IpcRegistro:
         return self._registros[-1]
+
+    def get_current_ipc(self) -> IpcRegistro:
+        return self.ultimo_registro()
+
+    def get_annual_average_ipc_info(self, year: int) -> IpcAnnualAverageInfo:
+        year_records = [row for row in self._registros if row.fecha.year == year and row.indice > 0]
+        if not year_records:
+            raise IpcNotFoundError(f"No existe IPC válido para el año {year}.")
+
+        by_month = {row.fecha.month: row for row in year_records}
+        months = sorted(by_month)
+        average = sum((by_month[month].indice for month in months), Decimal(0)) / Decimal(len(months))
+        missing_months = [month for month in range(1, 13) if month not in by_month]
+        warnings = []
+        if len(months) < 12:
+            warnings.append(
+                f"El año {year} tiene {len(months)} registros IPC; "
+                "se usó promedio con meses disponibles."
+            )
+
+        return IpcAnnualAverageInfo(
+            year=year,
+            average=average,
+            months_count=len(months),
+            missing_months=missing_months,
+            warnings=warnings,
+        )
+
+    def get_annual_average_ipc(self, year: int) -> Decimal:
+        return self.get_annual_average_ipc_info(year).average
 
     def obtener_por_fecha(self, fecha: object) -> IpcRegistro:
         periodo = to_period_yyyy_mm(fecha)
