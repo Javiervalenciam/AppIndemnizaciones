@@ -36,22 +36,22 @@ PERIODOS_COLUMNS = [
 PERIODOS_STYLE_CONDITIONAL = [
     {
         "if": {"row_index": "odd"},
-        "backgroundColor": "rgba(248, 251, 255, 0.56)",
+        "backgroundColor": "rgba(255, 255, 255, 0.48)",
     },
     {
         "if": {"filter_query": "{estado_validacion} = ERROR"},
-        "backgroundColor": "rgba(254, 226, 226, 0.72)",
+        "backgroundColor": "rgba(251, 73, 3, 0.12)",
         "color": "#7F1D1D",
     },
     {
         "if": {"filter_query": "{estado_validacion} = ADVERTENCIA"},
-        "backgroundColor": "rgba(254, 243, 199, 0.74)",
+        "backgroundColor": "rgba(255, 215, 49, 0.22)",
         "color": "#78350F",
     },
     {
         "if": {"filter_query": "{estado_validacion} = OK"},
-        "backgroundColor": "rgba(220, 252, 231, 0.68)",
-        "color": "#14532D",
+        "backgroundColor": "rgba(85, 219, 156, 0.18)",
+        "color": "#0D6B39",
     },
 ]
 
@@ -83,8 +83,11 @@ def build_periodos_table(data: list[dict[str, str]] | None = None) -> dash_table
         selected_rows=[],
         page_size=8,
         sort_action="native",
-        filter_action="native",
         hidden_columns=["id", "fuente", "observaciones"],
+        css=[
+            {"selector": ".dash-spreadsheet-menu", "rule": "display: none !important;"},
+            {"selector": ".show-hide", "rule": "display: none !important;"},
+        ],
         dropdown={
             "fuente": {
                 "options": [
@@ -98,37 +101,38 @@ def build_periodos_table(data: list[dict[str, str]] | None = None) -> dash_table
         style_table={
             "overflowX": "auto",
             "borderRadius": "18px",
-            "background": "rgba(255, 255, 255, 0.58)",
+            "background": "rgba(255, 255, 255, 0.76)",
         },
         style_cell={
-            "fontFamily": "Poppins, Inter, Roboto, Arial, sans-serif",
+            "fontFamily": "Inter, Roboto, Arial, sans-serif",
             "fontSize": "13px",
             "padding": "12px",
             "textAlign": "left",
             "minWidth": "120px",
             "whiteSpace": "normal",
             "height": "auto",
-            "backgroundColor": "rgba(255, 255, 255, 0.42)",
+            "backgroundColor": "rgba(255, 255, 255, 0.64)",
             "border": "0",
-            "borderBottom": "1px solid rgba(148, 163, 184, 0.18)",
-            "color": "#223047",
+            "borderBottom": "1px solid rgba(4, 24, 63, 0.08)",
+            "color": "#1E2C49",
+            "fontWeight": "700",
         },
         style_header={
-            "backgroundColor": "rgba(230, 239, 255, 0.86)",
-            "color": "#03346C",
-            "fontWeight": "800",
+            "backgroundColor": "rgba(244, 248, 255, 0.96)",
+            "color": "#17336F",
+            "fontWeight": "900",
             "border": "0",
-            "borderBottom": "1px solid rgba(0, 87, 184, 0.16)",
+            "borderBottom": "1px solid rgba(4, 24, 63, 0.1)",
             "textTransform": "uppercase",
             "letterSpacing": "0",
         },
         style_data={
-            "borderBottom": "1px solid rgba(148, 163, 184, 0.18)",
+            "borderBottom": "1px solid rgba(4, 24, 63, 0.08)",
         },
         style_filter={
-            "backgroundColor": "rgba(255, 255, 255, 0.76)",
+            "backgroundColor": "rgba(255, 255, 255, 0.86)",
             "border": "0",
-            "borderBottom": "1px solid rgba(148, 163, 184, 0.2)",
+            "borderBottom": "1px solid rgba(4, 24, 63, 0.1)",
         },
         style_cell_conditional=[
             {"if": {"column_id": "id"}, "minWidth": "72px", "width": "72px", "maxWidth": "80px"},

@@ -15,6 +15,26 @@ import dash_bootstrap_components as dbc
 from dash import dcc, html
 
 
+def app_nav() -> html.Nav:
+    """Navegacion visual fija. Los textos son anclas locales sin callbacks."""
+    items = [
+        ("Inicio", "inicio"),
+        ("IPC", "ipc"),
+        ("CETIL", "cetil"),
+        ("Liquidación", "liquidacion"),
+        ("Resultados", "resultados"),
+        ("Exportar", "exportar"),
+    ]
+    return html.Nav(
+        [
+            html.A(label, href=f"#{target}", className="app-nav__link")
+            for label, target in items
+        ],
+        className="app-nav",
+        **{"aria-label": "Navegacion principal"},
+    )
+
+
 def section_title(title: str, subtitle: str | None = None) -> html.Div:
     children: list[Any] = [html.H3(title, className="step-card__title")]
     if subtitle:
@@ -28,16 +48,29 @@ def step_card(
     body: Any,
     *,
     subtitle: str | None = None,
+    status: str | None = None,
+    status_tone: str = "neutral",
     extra_class: str = "",
 ) -> html.Div:
     """Tarjeta de paso con badge numerado, título y cuerpo libre."""
+    header_children: list[Any] = [
+        html.Div(
+            [
+                html.Span(str(number), className="step-card__badge"),
+                section_title(title, subtitle=subtitle),
+            ],
+            className="step-card__heading",
+        )
+    ]
+    if status:
+        header_children.append(
+            html.Span(status, className=f"step-card__status step-card__status--{status_tone}")
+        )
+
     return html.Div(
         [
             html.Div(
-                [
-                    html.Span(str(number), className="step-card__badge"),
-                    section_title(title, subtitle=subtitle),
-                ],
+                header_children,
                 className="step-card__header",
             ),
             html.Div(body, className="step-card__body"),
@@ -49,7 +82,13 @@ def step_card(
 def upload_zone(component_id: str, *, hint: str) -> dcc.Upload:
     return dcc.Upload(
         id=component_id,
-        children=html.Div(hint),
+        children=html.Div(
+            [
+                html.Span("↑", className="upload-zone__icon", **{"aria-hidden": "true"}),
+                html.Span(hint, className="upload-zone__text"),
+            ],
+            className="upload-zone__content",
+        ),
         multiple=False,
         className="upload-zone",
     )

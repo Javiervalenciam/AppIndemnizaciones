@@ -49,29 +49,28 @@ def register_callbacks(app) -> None:  # noqa: ANN001
     @app.callback(
         Output("ipc-status", "children"),
         Output("ipc-store", "data"),
+        Output("ipc-summary-store", "data"),
         Input("upload-ipc", "contents"),
+        Input("ipc-summary-store", "modified_timestamp"),
         State("upload-ipc", "filename"),
-        prevent_initial_call=True,
+        State("ipc-summary-store", "data"),
     )
-    def load_ipc(contents: str, filename: str):
-        try:
-            repo = IpcRepository.from_upload_contents(contents, filename)
-            summary = repo.summary()
-            data = [
-                {"periodo": row.periodo, "fecha": row.fecha.isoformat(), "indice": str(row.indice)}
-                for row in repo.registros
-            ]
-            return (
-                dbc.Alert(
-                    f"IPC cargado: {summary.total_registros} registros. "
-                    f"Rango {summary.periodo_minimo} a {summary.periodo_maximo}. "
-                    f"IPC actual detectado: {summary.ipc_actual}.",
-                    color="success",
-                ),
-                data,
-            )
-        except Exception as exc:  # UI boundary
-            return dbc.Alert(str(exc), color="danger"), no_update
+    def sync_ipc_upload(
+        contents: str | None,
+        _summary_timestamp: int | None,
+        filename: str | None,
+        stored_summary: dict | None,
+    ):
+        if ctx.triggered_id == "upload-ipc":
+            try:
+                ipc_data, summary_data = _parse_ipc_upload(contents, filename)
+                return _build_ipc_kpi(summary_data), ipc_data, summary_data
+            except Exception as exc:  # UI boundary
+                return dbc.Alert(str(exc), color="danger"), no_update, no_update
+
+        if stored_summary:
+            return _build_ipc_kpi(stored_summary), no_update, no_update
+        return None, no_update, no_update
 
     @app.callback(
         Output("cetil-store", "data"),
@@ -331,6 +330,70 @@ def _build_periodos_alert(rows: list[dict[str, str]]) -> dbc.Alert | None:
             color="warning",
         )
     return dbc.Alert("Periodos listos para calcular.", color="success")
+
+
+def _parse_ipc_upload(
+    contents: str | None,
+    filename: str | None,
+) -> tuple[list[dict[str, str]], dict[str, str | int]]:
+    repo = IpcRepository.from_upload_contents(contents or "", filename or "")
+    summary = repo.summary()
+    ipc_data = [
+        {"periodo": row.periodo, "fecha": row.fecha.isoformat(), "indice": str(row.indice)}
+        for row in repo.registros
+    ]
+    summary_data = {
+        "filename": filename or "archivo IPC",
+        "total_registros": summary.total_registros,
+        "periodo_minimo": summary.periodo_minimo,
+        "periodo_maximo": summary.periodo_maximo,
+        "ipc_actual": str(summary.ipc_actual),
+    }
+    return ipc_data, summary_data
+
+
+def _build_ipc_kpi(summary_data: dict) -> html.Div:
+    total_registros = summary_data.get("total_registros", 0)
+    periodo_minimo = summary_data.get("periodo_minimo", "N/D")
+    periodo_maximo = summary_data.get("periodo_maximo", "N/D")
+    ipc_actual = summary_data.get("ipc_actual", "N/D")
+    filename = summary_data.get("filename", "archivo IPC")
+
+    return html.Div(
+        [
+            html.Div(
+                [
+                    html.Span("Historico validado", className="ipc-kpi__eyebrow"),
+                    html.Span(f"{total_registros} registros", className="ipc-kpi__pill"),
+                ],
+                className="ipc-kpi__header",
+            ),
+            html.Div(
+                [
+                    html.Div(
+                        [
+                            html.Span("Ultimo IPC", className="ipc-kpi__label"),
+                            html.Strong(periodo_maximo, className="ipc-kpi__value"),
+                        ],
+                        className="ipc-kpi__metric",
+                    ),
+                    html.Div(
+                        [
+                            html.Span("IPC actual", className="ipc-kpi__label"),
+                            html.Strong(ipc_actual, className="ipc-kpi__value"),
+                        ],
+                        className="ipc-kpi__metric ipc-kpi__metric--accent",
+                    ),
+                ],
+                className="ipc-kpi__grid",
+            ),
+            html.Div(
+                f"Rango {periodo_minimo} a {periodo_maximo}. Fuente: {filename}.",
+                className="ipc-kpi__meta",
+            ),
+        ],
+        className="ipc-kpi",
+    )
 
 
 def _empty_cetil_ui_outputs() -> tuple:

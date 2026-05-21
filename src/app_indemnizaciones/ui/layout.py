@@ -12,6 +12,8 @@ def build_layout() -> html.Div:
         [
             html.Header(
                 [
+                    html.Div("🚀", className="hero-sticker hero-sticker--rocket", **{"aria-hidden": "true"}),
+                    html.Div("✓", className="hero-sticker hero-sticker--check", **{"aria-hidden": "true"}),
                     html.Div(
                         [
                             html.Span("Liquidación ISV", className="app-header__eyebrow"),
@@ -25,14 +27,15 @@ def build_layout() -> html.Div:
                     ),
                     html.Div(
                         [
-                            html.Span("Python", className="app-badge"),
-                            html.Span("Dash", className="app-badge"),
-                            html.Span("CETIL", className="app-badge"),
+                            html.Span("IPC anual", className="app-badge app-badge--blue"),
+                            html.Span("Revisión CETIL", className="app-badge app-badge--green"),
+                            html.Span("Exportación auditable", className="app-badge app-badge--violet"),
                         ],
                         className="app-header__meta",
                     ),
                 ],
                 className="app-header",
+                id="inicio",
             ),
             dbc.Row(
                 [
@@ -46,11 +49,15 @@ def build_layout() -> html.Div:
                                     hint="Arrastra o selecciona archivo IPC Excel/CSV",
                                 ),
                                 html.Div(id="ipc-status", className="mt-3"),
-                                dcc.Store(id="ipc-store"),
+                                dcc.Store(id="ipc-store", storage_type="local"),
+                                dcc.Store(id="ipc-summary-store", storage_type="local"),
                             ],
                             subtitle="Carga el histórico IPC y valida el último índice detectado.",
+                            status="Pendiente",
+                            status_tone="neutral",
                         ),
                         md=6,
+                        id="ipc",
                     ),
                     dbc.Col(
                         step_card(
@@ -82,8 +89,11 @@ def build_layout() -> html.Div:
                                 html.Div(id="cetil-apply-status", className="mt-3"),
                             ],
                             subtitle="Extrae datos revisables. No calcula sin validación manual.",
+                            status="Manual",
+                            status_tone="info",
                         ),
                         md=6,
+                        id="cetil",
                     ),
                 ],
                 className="g-3",
@@ -97,49 +107,61 @@ def build_layout() -> html.Div:
                 subtitle="Información detectada en encabezado, empleado y entidad empleadora.",
                 extra_class="mt-3",
             ),
-            step_card(
-                4,
-                "Cuadro de liquidación anual",
-                [
-                    dcc.Store(id="periodos-store", data=[]),
-                    dcc.Store(id="periodos-import-store"),
-                    html.P(
-                        "Periodos anualizados desde CETIL. Revise fechas e IBL antes de calcular.",
-                        className="mb-2",
-                    ),
-                    html.P("Usa fechas en formato AAAA-MM-DD.", className="periodos-help"),
-                    html.Div(id="periodos-alert", className="mb-3"),
-                    html.Div(
-                        [
-                            dbc.Button("Agregar periodo", id="btn-add-periodo", color="secondary"),
-                            dbc.Button(
-                                "Eliminar seleccionado",
-                                id="btn-delete-periodo",
-                                color="danger",
-                                outline=True,
-                            ),
-                        ],
-                        className="periodos-toolbar",
-                    ),
-                    build_periodos_table(),
-                    html.Div(
-                        [
-                            dbc.Button(
-                                "Calcular liquidación",
-                                id="btn-calcular",
-                                color="primary",
-                            ),
-                        ],
-                        className="step-actions",
-                    ),
-                ],
-                subtitle="Periodos anualizados desde CETIL. Revise fechas e IBL antes de calcular.",
-                extra_class="mt-3",
+            html.Div(
+                step_card(
+                    4,
+                    "Cuadro de liquidación anual",
+                    [
+                        dcc.Store(id="periodos-store", data=[]),
+                        dcc.Store(id="periodos-import-store"),
+                        html.P(
+                            "Periodos coincidentes desde CETIL. Primero fechas e IBL antes de calcular.",
+                            className="periodos-help",
+                        ),
+                        html.Div(id="periodos-alert", className="mb-3"),
+                        html.Div(
+                            [
+                                dbc.Button("Agregar periodo", id="btn-add-periodo", color="secondary"),
+                                dbc.Button(
+                                    "Eliminar seleccionado",
+                                    id="btn-delete-periodo",
+                                    color="danger",
+                                    outline=True,
+                                ),
+                                dbc.Button(
+                                    "Calcular liquidación",
+                                    id="btn-calcular",
+                                    color="primary",
+                                    className="periodos-toolbar__primary",
+                                ),
+                            ],
+                            className="periodos-toolbar",
+                        ),
+                        build_periodos_table(),
+                    ],
+                    subtitle="Revise datos extraídos y complete manualmente lo necesario.",
+                    status="Revisión",
+                    status_tone="info",
+                    extra_class="mt-3",
+                ),
+                id="liquidacion",
             ),
             dcc.Store(id="resultado-store"),
-            dcc.Loading(
-                html.Div(id="resultado-liquidacion", className="mt-4"),
-                type="circle",
+            html.Div(
+                [
+                    dcc.Loading(
+                        html.Div(id="resultado-liquidacion", className="mt-4"),
+                        type="circle",
+                    ),
+                    html.Div(
+                        [
+                            html.Div("PDF", className="float-sticker float-sticker--pdf", **{"aria-hidden": "true"}),
+                            html.Div("▥", className="float-sticker float-sticker--chart", **{"aria-hidden": "true"}),
+                        ],
+                        className="scene-decor",
+                    ),
+                ],
+                id="resultados",
             ),
             dcc.Download(id="download-liquidacion"),
             html.Footer(
@@ -149,6 +171,7 @@ def build_layout() -> html.Div:
                     html.Span(". CEO · Colombia ®"),
                 ],
                 className="app-footer",
+                id="exportar",
             ),
         ],
         fluid=True,
