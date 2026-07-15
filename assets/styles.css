@@ -848,6 +848,15 @@
   font-weight: 900;
 }
 
+.app-footer__credit {
+  color: var(--color-muted);
+  display: block;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  margin-top: var(--space-2);
+}
+
 /* Entry animation */
 
 .step-card,

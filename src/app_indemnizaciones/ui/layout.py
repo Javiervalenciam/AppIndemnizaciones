@@ -166,9 +166,17 @@ def build_layout() -> html.Div:
             dcc.Download(id="download-liquidacion"),
             html.Footer(
                 [
-                    html.Span("© 2026 ", className="app-footer__mark"),
-                    html.Strong("Javier Andrés Valencia Moreno"),
-                    html.Span(". CEO · Colombia ®"),
+                    html.Div(
+                        [
+                            html.Span("© 2026 ", className="app-footer__mark"),
+                            html.Strong("Javier Andrés Valencia Moreno"),
+                            html.Span(". CEO · Colombia ®"),
+                        ]
+                    ),
+                    html.Small(
+                        "Huella de desarrollo: Codex · OpenAI · GPT-5.6 Sol y Terra",
+                        className="app-footer__credit",
+                    ),
                 ],
                 className="app-footer",
                 id="exportar",

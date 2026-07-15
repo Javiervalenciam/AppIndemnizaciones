@@ -279,6 +279,16 @@ Liquidacion_ISV_88152324.xlsx
 
 ---
 
+## Créditos De Desarrollo
+
+Esta aplicación se desarrolló con el apoyo de **Codex de OpenAI** y los modelos
+**GPT-5.6 Sol y GPT-5.6 Terra**. Esta atribución reconoce las herramientas que
+acompañaron el proceso de desarrollo; las fórmulas, validaciones y resultados
+de la liquidación continúan siendo responsabilidad de la aplicación y de la
+revisión humana correspondiente.
+
+---
+
 ## Seguridad Y Buenas Prácticas
 
 El repositorio ignora artefactos locales y temporales:
