@@ -13,6 +13,7 @@ venv/
 
 # Pytest
 .pytest_cache/
+tests/fixtures_private/
 
 # Ruff
 .ruff_cache/

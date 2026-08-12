@@ -1,0 +1,316 @@
+{
+  "schema_version": 1,
+  "ipc_historico": [
+    {"fecha": "1983-01-31", "indice": "10"},
+    {"fecha": "1983-02-28", "indice": "20"},
+    {"fecha": "1984-01-31", "indice": "40"},
+    {"fecha": "1984-02-28", "indice": "60"},
+    {"fecha": "1987-01-31", "indice": "25"},
+    {"fecha": "1987-02-28", "indice": "35"},
+    {"fecha": "1988-01-31", "indice": "70"},
+    {"fecha": "1988-02-28", "indice": "90"},
+    {"fecha": "1999-01-31", "indice": "90"},
+    {"fecha": "1999-02-28", "indice": "110"},
+    {"fecha": "2000-01-31", "indice": "110"},
+    {"fecha": "2000-02-28", "indice": "130"},
+    {"fecha": "2020-01-31", "indice": "140"},
+    {"fecha": "2020-02-28", "indice": "160"},
+    {"fecha": "2021-01-31", "indice": "145"},
+    {"fecha": "2021-02-28", "indice": "155"},
+    {"fecha": "2026-04-30", "indice": "200"}
+  ],
+  "cases": [
+    {
+      "id": "one_period",
+      "periodos": [
+        {"fecha_inicio": "1983-09-29", "fecha_fin": "1984-11-30", "ibl_reportado": "14000", "anio": 1983}
+      ],
+      "expected": {
+        "periodos": [
+          {
+            "fecha_inicio": "1983-09-29",
+            "fecha_fin": "1984-11-30",
+            "ibl_reportado": "14000",
+            "anio": 1983,
+            "dias": 421,
+            "semanas": "60.14285714285714285714285714",
+            "periodo_ipc_inicial": "PROMEDIO ANUAL 1983",
+            "ipc_inicial": "15",
+            "periodo_ipc_actual": "2026-04",
+            "ipc_actual": "200",
+            "ibc_actualizado": "186666.6666666666666666666666",
+            "ibc_semanal_actualizado": "42961.25815113156885308784041"
+          }
+        ],
+        "total_dias": 421,
+        "sc": "60.14285714285714285714285714",
+        "sbc": "42961.25815113156885308784041",
+        "ppc": "0.0227",
+        "isv": "58652.55082470272343690065207"
+      }
+    },
+    {
+      "id": "multiple_periods_years_salaries",
+      "periodos": [
+        {"fecha_inicio": "1983-01-01", "fecha_fin": "1983-12-31", "ibl_reportado": "1000", "anio": 1983},
+        {"fecha_inicio": "1984-01-01", "fecha_fin": "1984-12-31", "ibl_reportado": "2000", "anio": 1984},
+        {"fecha_inicio": "1987-01-01", "fecha_fin": "1987-06-30", "ibl_reportado": "3000", "anio": 1987},
+        {"fecha_inicio": "1988-01-01", "fecha_fin": "1988-12-31", "ibl_reportado": "4000", "anio": 1988}
+      ],
+      "expected": {
+        "periodos": [
+          {
+            "fecha_inicio": "1983-01-01",
+            "fecha_fin": "1983-12-31",
+            "ibl_reportado": "1000",
+            "anio": 1983,
+            "dias": 360,
+            "semanas": "51.42857142857142857142857143",
+            "periodo_ipc_inicial": "PROMEDIO ANUAL 1983",
+            "ipc_inicial": "15",
+            "periodo_ipc_actual": "2026-04",
+            "ipc_actual": "200",
+            "ibc_actualizado": "13333.33333333333333333333333",
+            "ibc_semanal_actualizado": "3068.661296509397775220560030"
+          },
+          {
+            "fecha_inicio": "1984-01-01",
+            "fecha_fin": "1984-12-31",
+            "ibl_reportado": "2000",
+            "anio": 1984,
+            "dias": 360,
+            "semanas": "51.42857142857142857142857143",
+            "periodo_ipc_inicial": "PROMEDIO ANUAL 1984",
+            "ipc_inicial": "50",
+            "periodo_ipc_actual": "2026-04",
+            "ipc_actual": "200",
+            "ibc_actualizado": "8000",
+            "ibc_semanal_actualizado": "1841.196777905638665132336018"
+          },
+          {
+            "fecha_inicio": "1987-01-01",
+            "fecha_fin": "1987-06-30",
+            "ibl_reportado": "3000",
+            "anio": 1987,
+            "dias": 179,
+            "semanas": "25.57142857142857142857142857",
+            "periodo_ipc_inicial": "PROMEDIO ANUAL 1987",
+            "ipc_inicial": "30",
+            "periodo_ipc_actual": "2026-04",
+            "ipc_actual": "200",
+            "ibc_actualizado": "20000.00000000000000000000000",
+            "ibc_semanal_actualizado": "4602.991944764096662830840046"
+          },
+          {
+            "fecha_inicio": "1988-01-01",
+            "fecha_fin": "1988-12-31",
+            "ibl_reportado": "4000",
+            "anio": 1988,
+            "dias": 360,
+            "semanas": "51.42857142857142857142857143",
+            "periodo_ipc_inicial": "PROMEDIO ANUAL 1988",
+            "ipc_inicial": "80",
+            "periodo_ipc_actual": "2026-04",
+            "ipc_actual": "200",
+            "ibc_actualizado": "10000.0",
+            "ibc_semanal_actualizado": "2301.495972382048331415420023"
+          }
+        ],
+        "total_dias": 1259,
+        "sc": "179.8571428571428571428571429",
+        "sbc": "2953.58649789029535864978903",
+        "ppc": "0.0227",
+        "isv": "12058.77637130801687763713081"
+      }
+    },
+    {
+      "id": "one_day",
+      "periodos": [
+        {"fecha_inicio": "2020-05-15", "fecha_fin": "2020-05-15", "ibl_reportado": "1234.56", "anio": 2020}
+      ],
+      "expected": {
+        "periodos": [
+          {
+            "fecha_inicio": "2020-05-15",
+            "fecha_fin": "2020-05-15",
+            "ibl_reportado": "1234.56",
+            "anio": 2020,
+            "dias": 0,
+            "semanas": "0",
+            "periodo_ipc_inicial": "PROMEDIO ANUAL 2020",
+            "ipc_inicial": "150",
+            "periodo_ipc_actual": "2026-04",
+            "ipc_actual": "200",
+            "ibc_actualizado": "1646.080000000000000000000000",
+            "ibc_semanal_actualizado": "378.8446490218642117376294591"
+          }
+        ],
+        "total_dias": 0,
+        "sc": "0",
+        "sbc": "378.8446490218642117376294591",
+        "ppc": "0.0227",
+        "isv": "0E-29"
+      }
+    },
+    {
+      "id": "year_boundary",
+      "periodos": [
+        {"fecha_inicio": "1999-12-31", "fecha_fin": "2000-01-01", "ibl_reportado": "5000", "anio": 1999}
+      ],
+      "expected": {
+        "periodos": [
+          {
+            "fecha_inicio": "1999-12-31",
+            "fecha_fin": "2000-01-01",
+            "ibl_reportado": "5000",
+            "anio": 1999,
+            "dias": 1,
+            "semanas": "0.1428571428571428571428571429",
+            "periodo_ipc_inicial": "PROMEDIO ANUAL 1999",
+            "ipc_inicial": "100",
+            "periodo_ipc_actual": "2026-04",
+            "ipc_actual": "200",
+            "ibc_actualizado": "10000",
+            "ibc_semanal_actualizado": "2301.495972382048331415420023"
+          }
+        ],
+        "total_dias": 1,
+        "sc": "0.1428571428571428571428571429",
+        "sbc": "2301.495972382048331415420023",
+        "ppc": "0.0227",
+        "isv": "7.463422653296071017590004933"
+      }
+    },
+    {
+      "id": "february_non_leap",
+      "periodos": [
+        {"fecha_inicio": "2021-02-28", "fecha_fin": "2021-03-31", "ibl_reportado": "6000", "anio": 2021}
+      ],
+      "expected": {
+        "periodos": [
+          {
+            "fecha_inicio": "2021-02-28",
+            "fecha_fin": "2021-03-31",
+            "ibl_reportado": "6000",
+            "anio": 2021,
+            "dias": 33,
+            "semanas": "4.714285714285714285714285714",
+            "periodo_ipc_inicial": "PROMEDIO ANUAL 2021",
+            "ipc_inicial": "150",
+            "periodo_ipc_actual": "2026-04",
+            "ipc_actual": "200",
+            "ibc_actualizado": "7999.999999999999999999999998",
+            "ibc_semanal_actualizado": "1841.196777905638665132336018"
+          }
+        ],
+        "total_dias": 33,
+        "sc": "4.714285714285714285714285714",
+        "sbc": "1841.196777905638665132336018",
+        "ppc": "0.0227",
+        "isv": "197.0343580470162748643761301"
+      }
+    },
+    {
+      "id": "february_leap",
+      "periodos": [
+        {"fecha_inicio": "2020-02-29", "fecha_fin": "2020-03-31", "ibl_reportado": "7000", "anio": 2020}
+      ],
+      "expected": {
+        "periodos": [
+          {
+            "fecha_inicio": "2020-02-29",
+            "fecha_fin": "2020-03-31",
+            "ibl_reportado": "7000",
+            "anio": 2020,
+            "dias": 32,
+            "semanas": "4.571428571428571428571428571",
+            "periodo_ipc_inicial": "PROMEDIO ANUAL 2020",
+            "ipc_inicial": "150",
+            "periodo_ipc_actual": "2026-04",
+            "ipc_actual": "200",
+            "ibc_actualizado": "9333.333333333333333333333331",
+            "ibc_semanal_actualizado": "2148.062907556578442654392021"
+          }
+        ],
+        "total_dias": 32,
+        "sc": "4.571428571428571428571428571",
+        "sbc": "2148.062907556578442654392021",
+        "ppc": "0.0227",
+        "isv": "222.9075565784426543920214806"
+      }
+    },
+    {
+      "id": "month_30_31",
+      "periodos": [
+        {"fecha_inicio": "2020-01-30", "fecha_fin": "2020-01-31", "ibl_reportado": "8000", "anio": 2020}
+      ],
+      "expected": {
+        "periodos": [
+          {
+            "fecha_inicio": "2020-01-30",
+            "fecha_fin": "2020-01-31",
+            "ibl_reportado": "8000",
+            "anio": 2020,
+            "dias": 0,
+            "semanas": "0",
+            "periodo_ipc_inicial": "PROMEDIO ANUAL 2020",
+            "ipc_inicial": "150",
+            "periodo_ipc_actual": "2026-04",
+            "ipc_actual": "200",
+            "ibc_actualizado": "10666.66666666666666666666666",
+            "ibc_semanal_actualizado": "2454.929037207518220176448023"
+          }
+        ],
+        "total_dias": 0,
+        "sc": "0",
+        "sbc": "2454.929037207518220176448023",
+        "ppc": "0.0227",
+        "isv": "0E-28"
+      }
+    },
+    {
+      "id": "periods_with_gap",
+      "periodos": [
+        {"fecha_inicio": "1984-01-01", "fecha_fin": "1984-06-30", "ibl_reportado": "9000", "anio": 1984},
+        {"fecha_inicio": "1984-07-02", "fecha_fin": "1984-12-31", "ibl_reportado": "10000", "anio": 1984}
+      ],
+      "expected": {
+        "periodos": [
+          {
+            "fecha_inicio": "1984-01-01",
+            "fecha_fin": "1984-06-30",
+            "ibl_reportado": "9000",
+            "anio": 1984,
+            "dias": 179,
+            "semanas": "25.57142857142857142857142857",
+            "periodo_ipc_inicial": "PROMEDIO ANUAL 1984",
+            "ipc_inicial": "50",
+            "periodo_ipc_actual": "2026-04",
+            "ipc_actual": "200",
+            "ibc_actualizado": "36000",
+            "ibc_semanal_actualizado": "8285.385500575373993095512083"
+          },
+          {
+            "fecha_inicio": "1984-07-02",
+            "fecha_fin": "1984-12-31",
+            "ibl_reportado": "10000",
+            "anio": 1984,
+            "dias": 179,
+            "semanas": "25.57142857142857142857142857",
+            "periodo_ipc_inicial": "PROMEDIO ANUAL 1984",
+            "ipc_inicial": "50",
+            "periodo_ipc_actual": "2026-04",
+            "ipc_actual": "200",
+            "ibc_actualizado": "40000",
+            "ibc_semanal_actualizado": "9205.983889528193325661680092"
+          }
+        ],
+        "total_dias": 358,
+        "sc": "51.14285714285714285714285714",
+        "sbc": "8745.68469505178365937859609",
+        "ppc": "0.0227",
+        "isv": "10153.24017754397501232944271"
+      }
+    }
+  ]
+}
