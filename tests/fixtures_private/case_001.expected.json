@@ -1,0 +1,286 @@
+{
+  "schema_version": 1,
+  "source_sha256": "554d02bb11af90d652bca1eb4e35e1318a17f183bf7a1159d0cd669c06df31b8",
+  "result": {
+    "metadata": {
+      "numero_cetil": "<NUMERO_CETIL>",
+      "ciudad_expedicion": "TIBU",
+      "fecha_expedicion_cetil": "2026-06-16"
+    },
+    "trabajador": {
+      "tipo_documento": "C",
+      "documento": "<DOCUMENTO>",
+      "primer_apellido": "<PRIMER_APELLIDO>",
+      "segundo_apellido": "<SEGUNDO_APELLIDO>",
+      "primer_nombre": "<PRIMER_NOMBRE>",
+      "segundo_nombre": "<SEGUNDO_NOMBRE>",
+      "nombre_completo": "<NOMBRE_COMPLETO>",
+      "fecha_nacimiento": "<FECHA_NACIMIENTO>",
+      "genero": null
+    },
+    "entidad_empleadora": {
+      "nombre_entidad_empleadora": "<ENTIDAD_EMPLEADORA>",
+      "nit_entidad_empleadora": "<NIT_ENTIDAD_EMPLEADORA>",
+      "fecha_vigencia_sistema_general_pensiones": "1995-06-30"
+    },
+    "entidad_certificadora": "<ENTIDAD_CERTIFICADORA>",
+    "periodos_certificados": [
+      {
+        "fecha_desde": "1991-05-08",
+        "fecha_hasta": "1991-07-25",
+        "tipo_vinculacion": "LABORAL",
+        "tipo_empleado": "PÚBLICO",
+        "cargo": "Secretario (A)",
+        "aportes_pension": "SI",
+        "aportes_salud": "SI",
+        "aportes_riesgos": "SI",
+        "fondo_aporte": "CAJA DE PREVISION MUNICIPAL DE TIBU",
+        "entidad_responsable": "<ENTIDAD_EMPLEADORA>",
+        "total_no_dias": 0,
+        "interrupcion": null,
+        "cargo_alto_riesgo": "NO",
+        "tiempo_completo": "SI",
+        "horas_semanales_laboradas": null,
+        "fuente_pagina": 1
+      },
+      {
+        "fecha_desde": "1991-08-01",
+        "fecha_hasta": "1992-06-16",
+        "tipo_vinculacion": "LABORAL",
+        "tipo_empleado": "PÚBLICO",
+        "cargo": "Secretario (A)",
+        "aportes_pension": "SI",
+        "aportes_salud": "SI",
+        "aportes_riesgos": "SI",
+        "fondo_aporte": "CAJA DE PREVISION MUNICIPAL DE TIBU",
+        "entidad_responsable": "<ENTIDAD_EMPLEADORA>",
+        "total_no_dias": 0,
+        "interrupcion": null,
+        "cargo_alto_riesgo": "NO",
+        "tiempo_completo": "SI",
+        "horas_semanales_laboradas": null,
+        "fuente_pagina": 1
+      }
+    ],
+    "factores_salariales": [
+      {
+        "anio": 1991,
+        "concepto": "ASIGNACIÓN BÁSICA MENSUAL",
+        "periodicidad": null,
+        "valores_mensuales": {
+          "enero": "0.00",
+          "febrero": "0.00",
+          "marzo": "0.00",
+          "abril": "0.00",
+          "mayo": "65680.00",
+          "junio": "65680.00",
+          "julio": "65680.00",
+          "agosto": "65680.00",
+          "septiembre": "65680.00",
+          "octubre": "65680.00",
+          "noviembre": "65680.00",
+          "diciembre": "65680.00"
+        },
+        "valores_encontrados": [
+          "0.00",
+          "0.00",
+          "0.00",
+          "0.00",
+          "65680.00",
+          "65680.00",
+          "65680.00",
+          "65680.00",
+          "65680.00",
+          "65680.00",
+          "65680.00",
+          "65680.00"
+        ],
+        "asignacion_basica_mensual": "65680.00",
+        "total_devengado": null,
+        "ibl_sugerido": "65680.00",
+        "total_devengado_mensual": {},
+        "fuente_pagina": 1
+      },
+      {
+        "anio": 1991,
+        "concepto": "Total Devengado",
+        "periodicidad": null,
+        "valores_mensuales": {
+          "enero": "0.00",
+          "febrero": "0.00",
+          "marzo": "0.00",
+          "abril": "0.00",
+          "mayo": "65680.00",
+          "junio": "65680.00",
+          "julio": "65680.00",
+          "agosto": "65680.00",
+          "septiembre": "65680.00",
+          "octubre": "65680.00",
+          "noviembre": "65680.00",
+          "diciembre": "65680.00"
+        },
+        "valores_encontrados": [
+          "0.00",
+          "0.00",
+          "0.00",
+          "0.00",
+          "65680.00",
+          "65680.00",
+          "65680.00",
+          "65680.00",
+          "65680.00",
+          "65680.00",
+          "65680.00",
+          "65680.00"
+        ],
+        "asignacion_basica_mensual": null,
+        "total_devengado": "65680.00",
+        "ibl_sugerido": "65680.00",
+        "total_devengado_mensual": {
+          "enero": "0.00",
+          "febrero": "0.00",
+          "marzo": "0.00",
+          "abril": "0.00",
+          "mayo": "65680.00",
+          "junio": "65680.00",
+          "julio": "65680.00",
+          "agosto": "65680.00",
+          "septiembre": "65680.00",
+          "octubre": "65680.00",
+          "noviembre": "65680.00",
+          "diciembre": "65680.00"
+        },
+        "fuente_pagina": 1
+      },
+      {
+        "anio": 1992,
+        "concepto": "ASIGNACIÓN BÁSICA MENSUAL",
+        "periodicidad": null,
+        "valores_mensuales": {
+          "enero": "84070.00",
+          "febrero": "84070.00",
+          "marzo": "84070.00",
+          "abril": "84070.00",
+          "mayo": "84070.00",
+          "junio": "84070.00",
+          "julio": "0.00",
+          "agosto": "0.00",
+          "septiembre": "0.00",
+          "octubre": "0.00",
+          "noviembre": "0.00",
+          "diciembre": "0.00"
+        },
+        "valores_encontrados": [
+          "84070.00",
+          "84070.00",
+          "84070.00",
+          "84070.00",
+          "84070.00",
+          "84070.00",
+          "0.00",
+          "0.00",
+          "0.00",
+          "0.00",
+          "0.00",
+          "0.00"
+        ],
+        "asignacion_basica_mensual": "84070.00",
+        "total_devengado": null,
+        "ibl_sugerido": "84070.00",
+        "total_devengado_mensual": {},
+        "fuente_pagina": 2
+      },
+      {
+        "anio": 1992,
+        "concepto": "Total Devengado",
+        "periodicidad": null,
+        "valores_mensuales": {
+          "enero": "84070.00",
+          "febrero": "84070.00",
+          "marzo": "84070.00",
+          "abril": "84070.00",
+          "mayo": "84070.00",
+          "junio": "84070.00",
+          "julio": "0.00",
+          "agosto": "0.00",
+          "septiembre": "0.00",
+          "octubre": "0.00",
+          "noviembre": "0.00",
+          "diciembre": "0.00"
+        },
+        "valores_encontrados": [
+          "84070.00",
+          "84070.00",
+          "84070.00",
+          "84070.00",
+          "84070.00",
+          "84070.00",
+          "0.00",
+          "0.00",
+          "0.00",
+          "0.00",
+          "0.00",
+          "0.00"
+        ],
+        "asignacion_basica_mensual": null,
+        "total_devengado": "84070.00",
+        "ibl_sugerido": "84070.00",
+        "total_devengado_mensual": {
+          "enero": "84070.00",
+          "febrero": "84070.00",
+          "marzo": "84070.00",
+          "abril": "84070.00",
+          "mayo": "84070.00",
+          "junio": "84070.00",
+          "julio": "0.00",
+          "agosto": "0.00",
+          "septiembre": "0.00",
+          "octubre": "0.00",
+          "noviembre": "0.00",
+          "diciembre": "0.00"
+        },
+        "fuente_pagina": 2
+      }
+    ],
+    "filas_liquidables_anuales": [
+      {
+        "anio": 1991,
+        "fecha_inicio": "1991-05-08",
+        "fecha_fin": "1991-07-25",
+        "ibl_reportado": "65680.00",
+        "cargo": "Secretario (A)",
+        "entidad": "<ENTIDAD_EMPLEADORA>",
+        "fuente": "cetil",
+        "observaciones": "Periodo anualizado desde CETIL. Revisar IBL antes de calcular.",
+        "periodo_origen": "1991-05-08..1991-07-25"
+      },
+      {
+        "anio": 1991,
+        "fecha_inicio": "1991-08-01",
+        "fecha_fin": "1991-12-31",
+        "ibl_reportado": "65680.00",
+        "cargo": "Secretario (A)",
+        "entidad": "<ENTIDAD_EMPLEADORA>",
+        "fuente": "cetil",
+        "observaciones": "Periodo anualizado desde CETIL. Revisar IBL antes de calcular.",
+        "periodo_origen": "1991-08-01..1992-06-16"
+      },
+      {
+        "anio": 1992,
+        "fecha_inicio": "1992-01-01",
+        "fecha_fin": "1992-06-16",
+        "ibl_reportado": "84070.00",
+        "cargo": "Secretario (A)",
+        "entidad": "<ENTIDAD_EMPLEADORA>",
+        "fuente": "cetil",
+        "observaciones": "Periodo anualizado desde CETIL. Revisar IBL antes de calcular.",
+        "periodo_origen": "1991-08-01..1992-06-16"
+      }
+    ],
+    "advertencias": [
+      "No se detectó campo explícito de género en el CETIL.",
+      "Se detectó brecha real en el año 1991; se mantienen filas separadas."
+    ],
+    "confidence_score": 1.0
+  }
+}

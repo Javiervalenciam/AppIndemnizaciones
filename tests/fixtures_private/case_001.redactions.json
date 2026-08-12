@@ -1,0 +1,15 @@
+{
+  "replacements": {
+    "202606800070682000690002": "<NUMERO_CETIL>",
+    "37251900": "<DOCUMENTO>",
+    "Sanchez": "<PRIMER_APELLIDO>",
+    "Molina": "<SEGUNDO_APELLIDO>",
+    "Blanca": "<PRIMER_NOMBRE>",
+    "Nidian": "<SEGUNDO_NOMBRE>",
+    "Blanca Nidian Sanchez Molina": "<NOMBRE_COMPLETO>",
+    "1958-11-21": "<FECHA_NACIMIENTO>",
+    "MUNICIPIO DE TIBU": "<ENTIDAD_EMPLEADORA>",
+    "800070682": "<NIT_ENTIDAD_EMPLEADORA>",
+    "Nombre: MUNICIPIO DE TIBU Nit: 800,070,682": "<ENTIDAD_CERTIFICADORA>"
+  }
+}

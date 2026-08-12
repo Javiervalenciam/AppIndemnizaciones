@@ -1,0 +1,15 @@
+{
+  "replacements": {
+    "202510800099236000990002": "<NUMERO_CETIL>",
+    "13372022": "<DOCUMENTO>",
+    "Picon": "<PRIMER_APELLIDO>",
+    "Leon": "<SEGUNDO_APELLIDO>",
+    "Carlos": "<PRIMER_NOMBRE>",
+    "Emilio": "<SEGUNDO_NOMBRE>",
+    "Carlos Emilio Picon Leon": "<NOMBRE_COMPLETO>",
+    "1958-10-23": "<FECHA_NACIMIENTO>",
+    "MUNICIPIO DE CONVENCION": "<ENTIDAD_EMPLEADORA>",
+    "800099236": "<NIT_ENTIDAD_EMPLEADORA>",
+    "Nombre: MUNICIPIO DE CONVENCION Nit: 800,099,236": "<ENTIDAD_CERTIFICADORA>"
+  }
+}

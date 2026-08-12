@@ -1,0 +1,15 @@
+{
+  "replacements": {
+    "202309800099236000920001": "<NUMERO_CETIL>",
+    "37368045": "<DOCUMENTO>",
+    "Rodriguez": "<PRIMER_APELLIDO>",
+    "Mandon": "<SEGUNDO_APELLIDO>",
+    "Marta": "<PRIMER_NOMBRE>",
+    "Patricia": "<SEGUNDO_NOMBRE>",
+    "Marta Patricia Rodriguez Mandon": "<NOMBRE_COMPLETO>",
+    "1970-11-10": "<FECHA_NACIMIENTO>",
+    "MUNICIPIO DE CONVENCION": "<ENTIDAD_EMPLEADORA>",
+    "800099236": "<NIT_ENTIDAD_EMPLEADORA>",
+    "Nombre: MUNICIPIO DE CONVENCION Nit: 800,099,236": "<ENTIDAD_CERTIFICADORA>"
+  }
+}
