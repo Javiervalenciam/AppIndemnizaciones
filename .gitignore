@@ -59,3 +59,5 @@ temp/
 
 # Excel temporales
 ~$*.xlsx
+conversor_markdown/arrancar.bat
+convertir_a_markdown.bat
