@@ -11,7 +11,7 @@ from app_indemnizaciones.services.cetil_models import (
     cetil_result_to_dict,
 )
 
-PRIVATE_SNAPSHOT_SCHEMA_VERSION = 1
+PRIVATE_SNAPSHOT_SCHEMA_VERSION = 3
 
 
 def canonical_cetil_result(result: CetilExtractionResult) -> dict[str, Any]:

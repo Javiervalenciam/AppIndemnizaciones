@@ -72,10 +72,17 @@ def resultado_to_dict(resultado: ResultadoLiquidacion) -> dict[str, Any]:
         "sbc": str(resultado.sbc),
         "ppc": str(resultado.ppc),
         "isv": str(resultado.isv),
+        "fecha_liquidacion": (
+            resultado.fecha_liquidacion.isoformat() if resultado.fecha_liquidacion else None
+        ),
+        "ipc_actual_periodo": resultado.ipc_actual_periodo,
+        "ipc_actual_fuente": resultado.ipc_actual_fuente,
+        "advertencias": list(resultado.advertencias),
     }
 
 
 def resultado_from_dict(data: dict[str, Any]) -> ResultadoLiquidacion:
+    fecha_raw = data.get("fecha_liquidacion")
     return ResultadoLiquidacion(
         periodos=[_periodo_from_dict(row) for row in data["periodos"]],
         total_dias=int(data["total_dias"]),
@@ -83,6 +90,10 @@ def resultado_from_dict(data: dict[str, Any]) -> ResultadoLiquidacion:
         sbc=Decimal(data["sbc"]),
         ppc=Decimal(data["ppc"]),
         isv=Decimal(data["isv"]),
+        fecha_liquidacion=date.fromisoformat(fecha_raw) if fecha_raw else None,
+        ipc_actual_periodo=data.get("ipc_actual_periodo"),
+        ipc_actual_fuente=data.get("ipc_actual_fuente"),
+        advertencias=tuple(data.get("advertencias", [])),
     )
 
 

@@ -18,7 +18,7 @@ AppIndemnizaciones convierte un Excel manual de indemnización sustitutiva de ve
 Por cada periodo:
 
 ```text
-No. Días = DAYS360(fecha_desde, fecha_hasta) preferente; calendario como alternativa configurable.
+No. Días = días calendario reales, incluyendo fecha desde y fecha hasta.
 No. Semanas = No. Días / 7
 IBC Actualizado = IBL Reportado * (IPC Actual / IPC Inicial)
 IBC Semanal Actualizado = (IBC Actualizado * 12) / 52.14

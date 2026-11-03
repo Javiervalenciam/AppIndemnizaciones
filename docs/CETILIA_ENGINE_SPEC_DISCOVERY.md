@@ -63,8 +63,8 @@ La frontera ejecutable está en
 | Periodo mínimo | `fecha_inicio: date`, `fecha_fin: date`, `ibl_reportado: Decimal`; `anio`, `cargo`, `entidad` y `fuente` son opcionales. |
 | IPC | `IpcRepository` con por lo menos un `IpcRegistro(periodo, fecha, indice)`. |
 | Configuración | `CalculationConfig`; en ejecución se consumen `ppc` y `default_day_count`. `weeks_per_year` y `months_per_year` no son consumidos por el servicio. |
-| Fecha de liquidación | Parámetro opcional aceptado y pasado a `_calcular_periodo()`, pero no leído al seleccionar IPC. |
-| Convención de días | `commercial_360` por defecto; `calendar` es alternativa programática. La UI no expone la selección. |
+| Fecha de liquidación | Parámetro opcional; si existe se usa el IPC del periodo solicitado; si falta se usa el último IPC y se advierte en el resultado. |
+| Convención de días | `calendar` (días calendario reales, incluye extremos) por defecto; `commercial_360` queda como alternativa programática. La UI muestra la fecha de liquidación. |
 | Salida | `ResultadoLiquidacion` con detalle por periodo y totales `total_dias`, `sc`, `sbc`, `ppc`, `isv`. |
 | Precisión | Contexto global de `Decimal` con precisión 28; no hay `quantize()` dentro del motor. |
 | Errores bloqueantes | Lista vacía; fecha final anterior a inicial; IBL menor o igual a cero; convención de días desconocida; IPC inicial anual inexistente; histórico IPC vacío/inválido. |
@@ -100,11 +100,10 @@ pueda contener varios periodos.
 Estas expresiones son descripciones del legado, no reglas jurídicas aprobadas:
 
 ```text
-dias_fila = commercial_360_days(fecha_inicio, fecha_fin)
-             o calendar_days(fecha_inicio, fecha_fin)
+dias_fila = calendar_days(fecha_inicio, fecha_fin)  # (fin - inicio).days + 1
 semanas_fila = Decimal(dias_fila) / Decimal(7)
 ipc_inicial_fila = promedio simple de IPC mensuales validos del anio de la fila
-ipc_final_fila = indice del ultimo periodo YYYY-MM valido del repositorio
+ipc_final_fila = IPC del periodo de fecha_liquidacion o, si falta, ultimo periodo YYYY-MM valido
 ibc_actualizado_fila = ibl_reportado * (ipc_final_fila / ipc_inicial_fila)
 ibc_semanal_fila = ibc_actualizado_fila / Decimal("4.345")
 total_dias = suma(dias_fila)

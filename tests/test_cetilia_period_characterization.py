@@ -19,8 +19,8 @@ from app_indemnizaciones.services.period_normalizer import (
 from app_indemnizaciones.utils.validators import validate_period_rows
 
 CURRENT_BEHAVIOR = "CURRENT_BEHAVIOR: warnings do not block calculation."
-LEGACY_CURRENT_BEHAVIOR = (
-    "LEGACY_CURRENT_BEHAVIOR: freeze annualization output even when dates disappear."
+FIXED_ANNUALIZATION = (
+    "FIXED_ANNUALIZATION (D5): cross-year periods preserve every calendar day."
 )
 
 
@@ -93,8 +93,8 @@ def test_current_behavior_duplicate_periods_warn_but_both_are_calculated() -> No
 
     result = LiquidacionService(_ipc_repo()).calcular(rows_to_periodos_laborados(rows))
     assert len(result.periodos) == 2, CURRENT_BEHAVIOR
-    assert result.total_dias == 720, CURRENT_BEHAVIOR
-    assert result.sc == Decimal(720) / Decimal(7), CURRENT_BEHAVIOR
+    assert result.total_dias == 732, CURRENT_BEHAVIOR
+    assert result.sc == Decimal(732) / Decimal(7), CURRENT_BEHAVIOR
 
 
 def test_current_behavior_overlapping_periods_warn_but_days_are_summed() -> None:
@@ -109,8 +109,8 @@ def test_current_behavior_overlapping_periods_warn_but_days_are_summed() -> None
     assert all("posible solapamiento" in row["errores"] for row in rows), CURRENT_BEHAVIOR
 
     result = LiquidacionService(_ipc_repo()).calcular(rows_to_periodos_laborados(rows))
-    assert [row.dias for row in result.periodos] == [179, 210], CURRENT_BEHAVIOR
-    assert result.total_dias == 389, CURRENT_BEHAVIOR
+    assert [row.dias for row in result.periodos] == [182, 214], CURRENT_BEHAVIOR
+    assert result.total_dias == 396, CURRENT_BEHAVIOR
 
 
 def test_current_behavior_contiguous_cetil_periods_are_consolidated() -> None:
@@ -150,8 +150,8 @@ def test_current_behavior_gap_keeps_multiple_rows_for_same_year() -> None:
     assert any("brecha real" in warning for warning in warnings), CURRENT_BEHAVIOR
 
 
-def test_legacy_current_behavior_cross_year_period_loses_late_1987_dates() -> None:
-    """LEGACY_CURRENT_BEHAVIOR: 1987-11-08..1987-12-31 disappears (54 days)."""
+def test_cross_year_period_preserves_late_1987_dates() -> None:
+    """D5: 1987-11-08..1987-12-31 must remain in the 1987 row (54 days)."""
     rows, warnings = normalize_cetil_to_annual_periods(
         CetilExtractionResult(
             periodos_certificados=[
@@ -166,15 +166,16 @@ def test_legacy_current_behavior_cross_year_period_loses_late_1987_dates() -> No
     )
 
     assert [(row.anio, row.fecha_inicio, row.fecha_fin) for row in rows] == [
-        (1987, date(1987, 1, 1), date(1987, 11, 7)),
+        (1987, date(1987, 1, 1), date(1987, 12, 31)),
         (1988, date(1988, 1, 1), date(1988, 1, 17)),
-    ], LEGACY_CURRENT_BEHAVIOR
-    disappeared_start = date(1987, 11, 8)
-    disappeared_end = date(1987, 12, 31)
-    assert (disappeared_end - disappeared_start).days + 1 == 54, LEGACY_CURRENT_BEHAVIOR
-    assert all(
-        not (row.fecha_inicio <= disappeared_start <= row.fecha_fin) for row in rows
-    ), LEGACY_CURRENT_BEHAVIOR
-    assert any("anualización tipo Excel base" in warning for warning in warnings), (
-        LEGACY_CURRENT_BEHAVIOR
+    ], FIXED_ANNUALIZATION
+    preserved_start = date(1987, 11, 8)
+    preserved_end = date(1987, 12, 31)
+    assert (preserved_end - preserved_start).days + 1 == 54, FIXED_ANNUALIZATION
+    assert any(
+        row.fecha_inicio <= preserved_start and preserved_end <= row.fecha_fin
+        for row in rows
+    ), FIXED_ANNUALIZATION
+    assert not any("anualización tipo Excel base" in warning for warning in warnings), (
+        FIXED_ANNUALIZATION
     )

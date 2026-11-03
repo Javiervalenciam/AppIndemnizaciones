@@ -118,6 +118,28 @@ def build_layout() -> html.Div:
                             "Periodos coincidentes desde CETIL. Primero fechas e IBL antes de calcular.",
                             className="periodos-help",
                         ),
+                        html.Div(
+                            [
+                                html.Label(
+                                    "Fecha de liquidación (opcional)",
+                                    htmlFor="fecha-liquidacion",
+                                    className="periodos-help",
+                                ),
+                                dcc.DatePickerSingle(
+                                    id="fecha-liquidacion",
+                                    placeholder="AAAA-MM-DD",
+                                    display_format="YYYY-MM-DD",
+                                    first_day_of_week=1,
+                                    className="fecha-liquidacion",
+                                ),
+                                html.P(
+                                    "Si se omite, se usa el IPC más reciente disponible y se "
+                                    "advierte en el resultado.",
+                                    className="periodos-help",
+                                ),
+                            ],
+                            className="fecha-liquidacion-field",
+                        ),
                         html.Div(id="periodos-alert", className="mb-3"),
                         html.Div(
                             [

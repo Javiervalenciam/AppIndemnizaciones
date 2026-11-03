@@ -11,8 +11,10 @@ from app_indemnizaciones.domain.exceptions import CetilExtractionError, InvalidC
 from app_indemnizaciones.services.cetil_extractor import CetilExtractor
 from app_indemnizaciones.services.cetil_models import (
     CetilExtractionResult,
+    IssueSeverity,
     cetil_result_from_dict,
     cetil_result_to_dict,
+    highest_issue_severity,
 )
 from app_indemnizaciones.services.excel_exporter import (
     build_ipc_export_info,
@@ -32,6 +34,12 @@ from app_indemnizaciones.services.serialization import (
     resultado_to_dict,
     serialize_periods,
 )
+from app_indemnizaciones.ui.diagnostics import (
+    build_block_alert,
+    build_cetil_diagnostics,
+    build_extraction_status_alert,
+    build_pipeline_error_alert,
+)
 from app_indemnizaciones.ui.state import (
     EMPTY_CETIL_STATE,
     EMPTY_PERIODOS_STATE,
@@ -39,6 +47,7 @@ from app_indemnizaciones.ui.state import (
 )
 from app_indemnizaciones.ui.tables import (
     PERIODOS_STYLE_CONDITIONAL,
+    build_resultado_metadata,
     build_resultado_table,
     build_totales_row,
 )
@@ -94,7 +103,7 @@ def register_callbacks(app) -> None:  # noqa: ANN001
             result = CetilExtractor().extract_from_bytes(pdf_bytes)
             return (
                 cetil_result_to_dict(result),
-                dbc.Alert(f"CETIL procesado: {filename or 'archivo PDF'}.", color="success"),
+                build_extraction_status_alert(result, filename),
                 None,
                 list(EMPTY_PERIODOS_STATE),
                 list(EMPTY_PERIODOS_STATE),
@@ -105,19 +114,17 @@ def register_callbacks(app) -> None:  # noqa: ANN001
                 None,
                 None,
             )
-        except (CetilExtractionError, InvalidCetilFileError, ValueError) as exc:
-            return (
-                EMPTY_CETIL_STATE,
-                dbc.Alert(str(exc), color="danger"),
-                None,
-                list(EMPTY_PERIODOS_STATE),
-                list(EMPTY_PERIODOS_STATE),
-                PERIODOS_STYLE_CONDITIONAL,
-                [],
-                None,
-                EMPTY_RESULTADO_STATE,
-                None,
-                None,
+        except (CetilExtractionError, InvalidCetilFileError) as exc:
+            return _cetil_reset_outputs(
+                build_pipeline_error_alert(exc, code="CETIL_READ_ERROR")
+            )
+        except ValueError as exc:
+            return _cetil_reset_outputs(
+                build_pipeline_error_alert(exc, code="CETIL_INVALID_DATA")
+            )
+        except Exception as exc:  # noqa: BLE001 - la UI debe reportar todo fallo con código
+            return _cetil_reset_outputs(
+                build_pipeline_error_alert(exc, code="CETIL_UNEXPECTED_ERROR")
             )
 
     @app.callback(
@@ -160,17 +167,17 @@ def register_callbacks(app) -> None:  # noqa: ANN001
             return no_update, dbc.Alert("Primero cargue y procese un certificado CETIL.", color="warning")
 
         result = cetil_result_from_dict(cetil_data)
+        blocking = [issue for issue in result.issues if issue.is_blocking]
+        if blocking:
+            return no_update, build_block_alert(blocking)
+
         rows = cetil_extraction_to_period_rows(result)
         if not rows:
             return no_update, dbc.Alert("No se detectaron periodos certificados para enviar a la tabla.", color="warning")
 
         return (
             {"rows": rows, "nonce": n_clicks},
-            dbc.Alert(
-                f"Se agregaron {len(rows)} fila(s) anualizada(s) de CETIL a la tabla. "
-                "Revise IBL y errores antes de calcular.",
-                color="info",
-            ),
+            _build_apply_status(result, len(rows)),
         )
 
     @app.callback(
@@ -224,9 +231,10 @@ def register_callbacks(app) -> None:  # noqa: ANN001
         Input("btn-calcular", "n_clicks"),
         State("ipc-store", "data"),
         State("periodos-store", "data"),
+        State("fecha-liquidacion", "date"),
         prevent_initial_call=True,
     )
-    def calcular(n_clicks, ipc_data, periodos_data):
+    def calcular(n_clicks, ipc_data, periodos_data, fecha_liquidacion):
         if not ipc_data:
             return dbc.Alert("Primero cargue el archivo IPC.", color="warning"), no_update
 
@@ -248,7 +256,10 @@ def register_callbacks(app) -> None:  # noqa: ANN001
             repo = IpcRepository.from_dataframe(pd.DataFrame(ipc_data))
             periodos = rows_to_periodos_laborados(validated_rows)
 
-            resultado = LiquidacionService(repo).calcular(periodos)
+            resultado = LiquidacionService(repo).calcular(
+                periodos,
+                fecha_liquidacion=fecha_liquidacion,
+            )
             content = html.Div(
                 [
                     html.Div(
@@ -268,6 +279,7 @@ def register_callbacks(app) -> None:  # noqa: ANN001
                     ),
                     build_resultado_table(resultado),
                     build_totales_row(resultado),
+                    build_resultado_metadata(resultado),
                     html.Div(
                         [
                             dbc.Button("Descargar Excel", id="btn-download", color="success"),
@@ -278,8 +290,11 @@ def register_callbacks(app) -> None:  # noqa: ANN001
                 className="step-card",
             )
             return content, resultado_to_dict(resultado)
-        except Exception as exc:
-            return dbc.Alert(str(exc), color="danger"), no_update
+        except Exception as exc:  # noqa: BLE001 - se reporta con código de cálculo
+            return (
+                build_pipeline_error_alert(exc, code="CALCULO_UNEXPECTED_ERROR"),
+                no_update,
+            )
 
     @app.callback(
         Output("download-liquidacion", "data"),
@@ -298,7 +313,11 @@ def register_callbacks(app) -> None:  # noqa: ANN001
         xlsx = build_liquidacion_xlsx(
             resultado,
             cetil_result=cetil_result,
-            ipc_info=build_ipc_export_info(repo) if repo else None,
+            ipc_info=(
+                build_ipc_export_info(repo, fecha_liquidacion=resultado.fecha_liquidacion)
+                if repo
+                else None
+            ),
         )
         return dcc.send_bytes(xlsx, build_liquidacion_filename(cetil_result))
 
@@ -314,6 +333,39 @@ def _remove_selected_rows(
 
     selected_indexes = set(selected_rows or [])
     return [row for index, row in enumerate(rows) if index not in selected_indexes]
+
+
+def _cetil_reset_outputs(alert: object) -> tuple:
+    """Salidas del callback de carga cuando la extracción no produce resultado."""
+    return (
+        EMPTY_CETIL_STATE,
+        alert,
+        None,
+        list(EMPTY_PERIODOS_STATE),
+        list(EMPTY_PERIODOS_STATE),
+        PERIODOS_STYLE_CONDITIONAL,
+        [],
+        None,
+        EMPTY_RESULTADO_STATE,
+        None,
+        None,
+    )
+
+
+def _build_apply_status(result: CetilExtractionResult, row_count: int) -> dbc.Alert:
+    highest = highest_issue_severity(result.issues)
+    color = "warning" if highest in {IssueSeverity.ERROR, IssueSeverity.BLOCK} else "info"
+    detail = ""
+    if result.issues:
+        detail = (
+            f" El diagnóstico registra {len(result.issues)} incidencia(s); "
+            "revíselas en el paso 3 antes de calcular."
+        )
+    return dbc.Alert(
+        f"Se agregaron {row_count} fila(s) anualizada(s) de CETIL a la tabla. "
+        f"Revise IBL y errores antes de calcular.{detail}",
+        color=color,
+    )
 
 
 def _build_periodos_alert(rows: list[dict[str, str]]) -> dbc.Alert | None:
@@ -443,7 +495,6 @@ def _build_cetil_summary(result: CetilExtractionResult) -> html.Div:
         else None
     )
     years = sorted({factor.anio for factor in result.factores_salariales})
-    warnings = result.advertencias or ["Revise manualmente la tabla antes de calcular."]
 
     return html.Div(
         [
@@ -498,26 +549,14 @@ def _build_cetil_summary(result: CetilExtractionResult) -> html.Div:
                                 "Años salariales",
                                 ", ".join(str(year) for year in years) if years else "No detectados",
                             ),
+                            _summary_metric("Incidencias", str(len(result.issues))),
                         ],
                         className="cetil-summary-card",
                     ),
                 ],
                 className="cetil-summary-grid",
             ),
-            html.Details(
-                [
-                    html.Summary(
-                        f"Advertencias de extracción ({len(warnings)})",
-                        className="cetil-summary__warnings-summary",
-                    ),
-                    html.Ul(
-                        [html.Li(warning) for warning in warnings],
-                        className="cetil-summary__warnings",
-                    ),
-                ],
-                className="cetil-summary__warnings-box",
-                open=bool([warning for warning in warnings if "No se detectaron periodos" in warning]),
-            ),
+            build_cetil_diagnostics(result),
         ],
         className="cetil-summary",
     )

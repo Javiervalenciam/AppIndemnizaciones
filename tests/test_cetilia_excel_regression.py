@@ -5,16 +5,16 @@ from decimal import Decimal
 from io import BytesIO
 
 import pandas as pd
+import pytest
 from openpyxl import load_workbook
 
-from app_indemnizaciones.config import MONTHLY_TO_WEEKLY_DIVISOR
 from app_indemnizaciones.domain.models import PeriodoLaborado, ResultadoLiquidacion
 from app_indemnizaciones.services.excel_exporter import build_liquidacion_xlsx
 from app_indemnizaciones.services.ipc_loader import IpcRepository
 from app_indemnizaciones.services.liquidacion_service import LiquidacionService
 
 CURRENT_BEHAVIOR_DUPLICATED_FORMULA = (
-    "CURRENT_BEHAVIOR: Excel duplicates engine formulas; do not consolidate in this phase."
+    "FIXED: Excel no longer duplicates engine formulas; it receives backend values."
 )
 CENT = Decimal("0.01")
 
@@ -77,7 +77,7 @@ def test_resultado_liquidacion_matches_xlsx_cached_values() -> None:
         assert values[f"B{excel_row}"].value.date() == period.fecha_inicio
         assert values[f"C{excel_row}"].value.date() == period.fecha_fin
         assert values[f"D{excel_row}"].value == period.dias
-        assert values[f"E{excel_row}"].value == float(period.semanas)
+        assert values[f"E{excel_row}"].value == pytest.approx(float(period.semanas))
         assert _as_decimal(values[f"F{excel_row}"].value) == period.ibl_reportado.quantize(CENT)
         assert values[f"G{excel_row}"].value == float(resultado.ppc)
         assert _as_decimal(values[f"H{excel_row}"].value) == period.ipc_inicial
@@ -88,24 +88,35 @@ def test_resultado_liquidacion_matches_xlsx_cached_values() -> None:
         )
 
     assert values["B18"].value == resultado.total_dias
-    assert values["B19"].value == float(resultado.sc)
+    assert values["B19"].value == pytest.approx(float(resultado.sc))
     assert values["B20"].value == float(resultado.ppc)
     assert _as_decimal(values["B21"].value) == resultado.sbc.quantize(CENT)
     assert _as_decimal(values["B22"].value) == resultado.isv.quantize(CENT)
 
 
-def test_current_excel_formulas_duplicate_engine_formulas_by_design() -> None:
+def test_excel_escribe_valores_del_backend_y_no_formulas() -> None:
     resultado = _resultado()
     formulas, _values = _xlsx_sheets(resultado)
 
-    assert formulas["D14"].value == "=DAYS360(B14,C14)", CURRENT_BEHAVIOR_DUPLICATED_FORMULA
-    assert formulas["E14"].value == "=D14/7", CURRENT_BEHAVIOR_DUPLICATED_FORMULA
-    assert formulas["J14"].value == "=F14*(I14/H14)", CURRENT_BEHAVIOR_DUPLICATED_FORMULA
-    assert formulas["K14"].value == (
-        f"=J14/{MONTHLY_TO_WEEKLY_DIVISOR}"
-    ), CURRENT_BEHAVIOR_DUPLICATED_FORMULA
-    assert formulas["B18"].value == "=SUM(D14:D15)", CURRENT_BEHAVIOR_DUPLICATED_FORMULA
-    assert formulas["B19"].value == "=SUM(E14:E15)", CURRENT_BEHAVIOR_DUPLICATED_FORMULA
-    assert formulas["B20"].value == "=AVERAGE(G14:G15)", CURRENT_BEHAVIOR_DUPLICATED_FORMULA
-    assert formulas["B21"].value == "=AVERAGE(K14:K15)", CURRENT_BEHAVIOR_DUPLICATED_FORMULA
-    assert formulas["B22"].value == "=B21*B19*B20", CURRENT_BEHAVIOR_DUPLICATED_FORMULA
+    for cell in ("D14", "E14", "J14", "K14", "B18", "B19", "B20", "B21", "B22"):
+        assert not str(formulas[cell].value).startswith("="), CURRENT_BEHAVIOR_DUPLICATED_FORMULA
+    assert formulas["D14"].value == resultado.periodos[0].dias
+    assert formulas["K14"].value == _money(resultado.periodos[0].ibc_semanal_actualizado)
+    assert formulas["B22"].value == _money(resultado.isv)
+
+
+def test_excel_incluye_trazabilidad_por_fila() -> None:
+    resultado = _resultado()
+    content = build_liquidacion_xlsx(resultado)
+    workbook = load_workbook(BytesIO(content), data_only=True)
+
+    assert workbook.sheetnames == ["Liquidación", "Trazabilidad"]
+    ws = workbook["Trazabilidad"]
+    assert ws["A7"].value == 1983
+    assert ws["D7"].value == resultado.periodos[0].dias
+    assert ws["O7"].value == _money(resultado.periodos[0].ibc_actualizado)
+    assert ws["P7"].value == _money(resultado.periodos[0].ibc_semanal_actualizado)
+
+
+def _money(value: Decimal) -> float:
+    return float(value.quantize(CENT))

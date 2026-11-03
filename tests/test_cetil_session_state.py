@@ -44,6 +44,10 @@ def test_layout_has_clear_cetil_button():
     assert _find_component_id(build_layout(), "btn-limpiar-cetil")
 
 
+def test_layout_has_fecha_liquidacion_picker():
+    assert _find_component_id(build_layout(), "fecha-liquidacion")
+
+
 def _find_component_id(component: object, component_id: str) -> bool:
     if getattr(component, "id", None) == component_id:
         return True

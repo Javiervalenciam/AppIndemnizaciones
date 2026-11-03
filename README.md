@@ -74,7 +74,7 @@ La lógica de cálculo se encuentra en servicios de dominio, no en callbacks ni 
 
 | Concepto | Fórmula |
 | --- | --- |
-| Días | `DAYS360(fecha_inicio, fecha_fin)` |
+| Días | Días calendario reales, incluyendo fecha inicial y final (`(fin - inicio).days + 1`) |
 | Semanas | `dias / 7` |
 | PPC | `0.0227` |
 | IBC actualizado | `IBL reportado * (IPC actual / IPC inicial)` |

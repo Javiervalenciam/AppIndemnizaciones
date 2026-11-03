@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import re
 import uuid
+from collections.abc import Callable
 from datetime import date, timedelta
 from decimal import Decimal, InvalidOperation
 from typing import Any
@@ -9,9 +10,15 @@ from typing import Any
 from app_indemnizaciones.domain.models import PeriodoLaborado
 from app_indemnizaciones.services.cetil_models import (
     CetilExtractionResult,
+    CetilFactorSalarial,
     CetilPeriodoCertificado,
+    ExtractionIssueCode,
+    ExtractionIssueLog,
+    IssueSeverity,
     PeriodoLiquidableAnual,
 )
+
+ReportIssue = Callable[..., None]
 
 PERIODO_COLUMNS = (
     "id",
@@ -170,8 +177,36 @@ def split_period_by_calendar_year(fecha_inicio: date, fecha_fin: date) -> list[d
 
 def normalize_cetil_to_annual_periods(
     result: CetilExtractionResult,
+    *,
+    log: ExtractionIssueLog | None = None,
 ) -> tuple[list[PeriodoLiquidableAnual], list[str]]:
     warnings: list[str] = []
+
+    def report(
+        *,
+        code: ExtractionIssueCode,
+        severity: IssueSeverity,
+        message: str,
+        field: str | None = None,
+        page: int | None = None,
+        locator: str | None = None,
+        cause: str | None = None,
+        action: str | None = None,
+    ) -> None:
+        if message not in warnings:
+            warnings.append(message)
+        if log is not None:
+            log.add(
+                code=code,
+                severity=severity,
+                message=message,
+                field=field,
+                page=page,
+                locator=locator,
+                cause=cause,
+                action=action,
+            )
+
     periodos = sorted(
         [
             periodo
@@ -180,16 +215,24 @@ def normalize_cetil_to_annual_periods(
         ],
         key=lambda row: row.fecha_desde or date.min,
     )
-    segments = _segments_from_cetil_periods(periodos, warnings)
-    consolidated = _consolidate_annual_segments(segments, warnings)
-    ibl_by_year = _ibl_sugerido_by_year(result)
+    segments = _segments_from_cetil_periods(periodos)
+    consolidated = _consolidate_annual_segments(segments, report)
+    ibl_factor_by_year = _ibl_factor_by_year(result)
 
     rows: list[PeriodoLiquidableAnual] = []
     for segment in consolidated:
         anio = int(segment["anio"])
-        ibl = ibl_by_year.get(anio)
+        ibl_factor = ibl_factor_by_year.get(anio)
+        ibl = ibl_factor.ibl_sugerido if ibl_factor is not None else None
         if ibl is None:
-            warnings.append(f"No se detectó IBL para el año {anio}. Debe ingresarse manualmente.")
+            report(
+                code=ExtractionIssueCode.IBL_MANUAL_REQUIRED,
+                severity=IssueSeverity.REVIEW_REQUIRED,
+                message=f"No se detectó IBL para el año {anio}. Debe ingresarse manualmente.",
+                field=f"filas_liquidables_anuales.{anio}.ibl",
+                locator=f"FACTORES SALARIALES {anio}",
+                action="Escriba el IBL del año en el cuadro de liquidación antes de calcular.",
+            )
         rows.append(
             PeriodoLiquidableAnual(
                 anio=anio,
@@ -199,6 +242,12 @@ def normalize_cetil_to_annual_periods(
                 cargo=segment.get("cargo") or None,
                 entidad=segment.get("entidad") or None,
                 periodo_origen=segment.get("periodo_origen") or None,
+                fuente_pagina=segment.get("fuente_pagina"),
+                ibl_metodo=ibl_factor.ibl_metodo if ibl_factor is not None else None,
+                ibl_evidencia=ibl_factor.ibl_evidencia if ibl_factor is not None else None,
+                ibl_requiere_revision=(
+                    ibl_factor.ibl_requiere_revision if ibl_factor is not None else True
+                ),
             )
         )
     return rows, _dedupe(warnings)
@@ -220,10 +269,25 @@ def periodo_liquidable_to_ui_row(periodo: PeriodoLiquidableAnual) -> dict[str, s
             "cargo": periodo.cargo or "",
             "entidad": periodo.entidad or "",
             "fuente": periodo.fuente,
-            "observaciones": periodo.observaciones,
+            "observaciones": _annual_row_observaciones(periodo),
         }
     )
     return normalize_period_row(row)
+
+
+def _annual_row_observaciones(periodo: PeriodoLiquidableAnual) -> str:
+    parts = [periodo.observaciones]
+    if periodo.periodo_origen:
+        parts.append(f"Origen CETIL: {periodo.periodo_origen}.")
+    if periodo.fuente_pagina:
+        parts.append(f"Página {periodo.fuente_pagina}.")
+    if periodo.ibl_metodo:
+        parts.append(f"IBL por {periodo.ibl_metodo}.")
+    if periodo.ibl_evidencia:
+        parts.append(periodo.ibl_evidencia)
+    if periodo.ibl_requiere_revision:
+        parts.append("IBL requiere revisión manual.")
+    return " ".join(part for part in parts if part)
 
 
 def _cetil_observaciones(periodo: CetilPeriodoCertificado) -> str:
@@ -235,44 +299,31 @@ def _cetil_observaciones(periodo: CetilPeriodoCertificado) -> str:
 
 def _segments_from_cetil_periods(
     periodos: list[CetilPeriodoCertificado],
-    warnings: list[str],
 ) -> list[dict[str, Any]]:
     segments: list[dict[str, Any]] = []
-    previous_end: date | None = None
 
     for periodo in periodos:
         if periodo.fecha_desde is None or periodo.fecha_hasta is None:
             continue
+        # Nota técnica (D5, aprobado): la regla heredada "tipo Excel base"
+        # truncaba el tramo del primer año en `periodo.fecha_desde`, perdiendo
+        # días (por ejemplo 1987-11-08..1987-12-31). La segmentación por año
+        # calendario ya es correcta y no debe descartar días.
         current_segments = split_period_by_calendar_year(periodo.fecha_desde, periodo.fecha_hasta)
-        if (
-            previous_end is not None
-            and previous_end + timedelta(days=1) == periodo.fecha_desde
-            and periodo.fecha_desde.year != periodo.fecha_hasta.year
-            and periodo.fecha_hasta.month == 1
-        ):
-            for segment in current_segments:
-                if segment["anio"] == periodo.fecha_desde.year:
-                    segment["fecha_fin"] = periodo.fecha_desde
-                    warnings.append(
-                        "Se aplicó anualización tipo Excel base sobre un periodo contiguo que cruza año; "
-                        f"revise manualmente el tramo posterior a {periodo.fecha_desde.isoformat()}."
-                    )
-                    break
-
         for segment in current_segments:
             segment["cargo"] = periodo.cargo or ""
             segment["entidad"] = periodo.entidad_responsable or ""
             segment["periodo_origen"] = (
                 f"{periodo.fecha_desde.isoformat()}..{periodo.fecha_hasta.isoformat()}"
             )
+            segment["fuente_pagina"] = periodo.fuente_pagina
             segments.append(segment)
-        previous_end = periodo.fecha_hasta
     return segments
 
 
 def _consolidate_annual_segments(
     segments: list[dict[str, Any]],
-    warnings: list[str],
+    report: ReportIssue,
 ) -> list[dict[str, Any]]:
     sorted_segments = sorted(segments, key=lambda row: (row["anio"], row["fecha_inicio"]))
     consolidated: list[dict[str, Any]] = []
@@ -290,19 +341,31 @@ def _consolidate_annual_segments(
                 current.get("periodo_origen", ""),
                 segment.get("periodo_origen", ""),
             )
+            current["fuente_pagina"] = (
+                current.get("fuente_pagina") or segment.get("fuente_pagina")
+            )
         else:
-            warnings.append(
-                f"Se detectó brecha real en el año {segment['anio']}; se mantienen filas separadas."
+            report(
+                code=ExtractionIssueCode.YEAR_GAP,
+                severity=IssueSeverity.WARNING,
+                message=(
+                    f"Se detectó brecha real en el año {segment['anio']}; "
+                    "se mantienen filas separadas."
+                ),
+                field=f"filas_liquidables_anuales.{segment['anio']}",
+                locator="anualización",
+                cause="Los tramos del mismo año no son contiguos.",
+                action="Confirme si la brecha existe en el CETIL o si falta un periodo.",
             )
             consolidated.append(segment.copy())
     return consolidated
 
 
-def _ibl_sugerido_by_year(result: CetilExtractionResult) -> dict[int, Decimal]:
-    selected: dict[int, Decimal] = {}
+def _ibl_factor_by_year(result: CetilExtractionResult) -> dict[int, CetilFactorSalarial]:
+    selected: dict[int, CetilFactorSalarial] = {}
     for factor in result.factores_salariales:
         if factor.ibl_sugerido is not None and factor.anio not in selected:
-            selected[factor.anio] = factor.ibl_sugerido
+            selected[factor.anio] = factor
     return selected
 
 

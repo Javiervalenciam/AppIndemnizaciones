@@ -69,6 +69,10 @@ Dash o cualquier frontend futuro solo adapta entradas y presenta salidas.
 | `DEC-SBC-001` | La segmentación puramente técnica no debe cambiar el resultado; fórmula definitiva de SBC pendiente | `PARTIALLY_APPROVED` | Especificación Fase 3B | Obliga pruebas de invariancia antes de aprobar fórmula |
 | `DEC-EXCEL-001` | Excel no será un segundo motor de cálculo | `APPROVED` | Especificación Fase 3B | El backend es la única fuente del resultado |
 | `DEC-ARCH-001` | El núcleo y sus capas no dependen de Dash | `APPROVED` | Descubrimiento + Fase 3B | Permite cálculo y auditoría fuera de UI |
+| `DEC-DAY-001` | Días calendario reales incluyendo fecha inicial y final; un año completo cuenta 365/366 | `APPROVED` | Decisión del usuario, Fase 4 | Reemplaza el aproximado 30/360 como convención por defecto |
+| `DEC-IBL-001` | SBC por fila anual con el IBL del año; meses heterogéneos o fuera del IBC exigen revisión | `APPROVED` | Decisión D1, Fase 2 | No se inventa una ponderación mensual sin aprobación |
+| `DEC-LIQDATE-001` | Fecha de liquidación opcional; si falta se usa el IPC más reciente y se advierte | `APPROVED` | Decisión D2, Fase 4 | Evita fallos silenciosos y deja la fuente IPC en la trazabilidad |
+| `DEC-OCR-001` | OCR opcional solo con revisión manual obligatoria; si no está disponible, bloquea | `APPROVED` | Decisión D4, Fase 4 | Nunca se calcula con texto OCR sin confirmación humana |
 
 ### B.2 Decisión PPC no reabrible
 
@@ -118,7 +122,7 @@ variable; no se crea PPC histórico, por periodo ni tabla de tasas, y no se prop
 | `MAP-PERIOD-003` | Solapamiento | Advierte, pero suma días de ambas filas | `FIX` | `REVIEW_REQUIRED` hasta resolver el tramo; no calcularlo silenciosamente | Evita doble conteo no autorizado | `test_current_behavior_overlapping_periods_warn_but_days_are_summed` | Solape parcial, total, entre entidades y con salarios distintos |
 | `MAP-PERIOD-004` | Contiguos | Segmentos CETIL contiguos del mismo año se consolidan | `KEEP` | Consolidación condicional: misma vinculación, sin interrupción ni conflictos de entidad/salario | Reduce segmentación técnica sin borrar cambios reales | `test_current_behavior_contiguous_cetil_periods_are_consolidated` | Matriz de condiciones permitidas/prohibidas |
 | `MAP-PERIOD-005` | Brechas | Filas con brecha permanecen separadas | `KEEP` | Conservar la brecha como `HistoryIssue`; jamás rellenarla | No inventar historia laboral | `test_current_behavior_gap_keeps_multiple_rows_for_same_year` | Brechas de 1 día, mes, año y entre documentos |
-| `MAP-DAY-001` | `commercial_360` | Fórmula aproximada 30/360, sin sumar un día | `REVIEW_REQUIRED` | No fijar resultado jurídico hasta aprobación de convención y extremos | Caracterización no equivale a validez jurídica | Suite dorada de 8 casos | Oráculo jurídico contra calendario y Excel `DAYS360` |
+| `MAP-DAY-001` | `calendar` (días calendario reales) | Diferencia calendario más un día: incluye fecha inicial y final; un año completo cuenta 365/366 | `KEEP` | Convención aprobada para reemplazar la aproximación 30/360 | Evita perder días en periodos de un solo día o en años bisiestos | Pruebas de servicio y exportación | Validación jurídica de inclusión de extremos |
 | `MAP-DAY-002` | `calendar` | `(end - start).days`, extremo final no incluido | `REVIEW_REQUIRED` | Convención e inclusión de extremos pendientes | No existe aprobación jurídica | Pruebas de servicio | Casos de un día, meses, febrero y bisiesto |
 | `MAP-DAY-003` | Excel `DAYS360` | Recalcula días independientemente de Python | `FIX` | Excel recibe días calculados; una fórmula visible es solo explicativa y debe corresponder a versión | Evitar dos motores | `test_current_excel_formulas_duplicate_engine_formulas_by_design` | Paridad backend/exportación sin recálculo independiente |
 | `MAP-SBC-001` | SBC | Promedio simple de `IBC_semanal_actualizado` por número de filas | `REVIEW_REQUIRED` | Fórmula definitiva pendiente; exigir invariancia frente a segmentación técnica | El número de filas puede cambiar el resultado | Oráculo dorado y prueba de SBC | Casos A-D de la sección L |
@@ -273,7 +277,8 @@ La equivalencia de 7 días por semana está aprobada. La convención que determi
 
 | Caso | Resultado legado | Riesgo | Resultado objetivo definido | Estado |
 | --- | --- | --- | --- | --- |
-| `commercial_360` general | Fórmula aproximada: años×360 + meses×30 + ajuste de días | Puede diferir de otras variantes 30/360 y de Excel | No definido jurídicamente; debe identificarse por regla/versionado | `REVIEW_REQUIRED` |
+| `calendar` (aprobada) | `(fecha_fin - fecha_inicio).days + 1` | Incluye ambos extremos; un año completo cuenta 365/366 | Aprobada como convención por defecto | `KEEP` |
+| `commercial_360` (alternativa) | Fórmula aproximada: años×360 + meses×30 + ajuste de días | Puede diferir de otras variantes 30/360 y de Excel | Disponible solo si se solicita explícitamente; no es el valor por defecto | `REVIEW_REQUIRED` |
 | `calendar` | `(fecha_fin - fecha_inicio).days` | Excluye extremo final | No definido jurídicamente | `REVIEW_REQUIRED` |
 | Excel `DAYS360` | Fórmula independiente en exportación | Puede divergir de Python | No recalcula; muestra el valor backend y, si procede, explicación | `FIX` |
 | Periodo de un día | 0 días | Puede excluir un día realmente certificado | Pendiente de regla sobre inclusión de extremos | `REVIEW_REQUIRED` |

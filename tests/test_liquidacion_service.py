@@ -32,7 +32,7 @@ def test_liquidacion_single_period():
     )
 
     row = result.periodos[0]
-    assert row.dias == 421
+    assert row.dias == 429
     assert row.ipc_inicial == Decimal("1.56")
     assert row.ipc_actual == Decimal("155.73")
     assert row.ibc_actualizado.quantize(Decimal("0.01")) == Decimal("1397576.92")
@@ -92,8 +92,8 @@ def test_liquidacion_calcula_sbc_sc_y_aportes_sin_redondeo_intermedio():
     weekly_1983 = (Decimal("1000") * (Decimal("100") / Decimal("15"))) / Decimal("4.345")
     weekly_1984 = (Decimal("2000") * (Decimal("100") / Decimal("50"))) / Decimal("4.345")
 
-    assert result.total_dias == 720
-    assert result.sc == Decimal(720) / Decimal(7)
+    assert result.total_dias == 731
+    assert result.sc == Decimal(731) / Decimal(7)
     assert result.sbc == (weekly_1983 + weekly_1984) / Decimal(2)
     assert result.ppc == Decimal("0.0227")
     assert result.isv == result.sbc * result.sc * result.ppc

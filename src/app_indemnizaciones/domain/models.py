@@ -67,3 +67,9 @@ class ResultadoLiquidacion:
     sbc: Decimal
     ppc: Decimal
     isv: Decimal
+    # Fecha con la que se solicitó la liquidación. Si es `None`, se usó el IPC
+    # más reciente disponible y queda registrado en `advertencias`.
+    fecha_liquidacion: date | None = None
+    ipc_actual_periodo: str | None = None
+    ipc_actual_fuente: str | None = None
+    advertencias: tuple[str, ...] = ()
