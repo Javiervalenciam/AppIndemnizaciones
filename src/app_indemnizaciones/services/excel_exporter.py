@@ -6,12 +6,106 @@ from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
 
+from app_indemnizaciones.config import MONTHLY_TO_WEEKLY_DIVISOR
 from app_indemnizaciones.domain.models import ResultadoLiquidacion, ResultadoPeriodo
 from app_indemnizaciones.services.cetil_models import (
     CetilExtractionResult,
     PeriodoLiquidableAnual,
 )
+from app_indemnizaciones.services.excel_report_theme import (
+    LIQUIDACION_COLUMNS,
+    LIQUIDACION_LAST_COLUMN,
+    LIQUIDACION_LAYOUT,
+    ReportPalette,
+    apply_print_setup,
+    build_formats,
+    text_height,
+    wrapped_row_height,
+    write_merged,
+    write_merged_value,
+)
 from app_indemnizaciones.services.ipc_loader import IpcRepository
+
+TITLE = "LIQUIDACIÓN DE INDEMNIZACIÓN SUSTITUTIVA DE VEJEZ"
+SUBTITLE = (
+    "Certificado de Información Laboral (CETIL) · Indexación con IPC histórico · "
+    "Días calendario reales inclusivos"
+)
+
+TABLE_HEADERS = (
+    "AÑO",
+    "FECHA\nDESDE",
+    "FECHA\nHASTA",
+    "No.\nDÍAS",
+    "No.\nSEMANAS",
+    "IBL\nREPORTADO",
+    "PPC\nAPLICADO",
+    "IPC\nINICIAL",
+    "IPC\nACTUAL",
+    "IBC MENSUAL\nACTUALIZADO",
+    "IBC SEMANAL\nACTUALIZADO",
+)
+
+# El PPC vive en la tarjeta KPI G13:H13 y el divisor en el campo I9:K9.
+# Las fórmulas los referencian para que exista una sola fuente en el libro.
+PPC_KPI_COLUMN = 6
+DIVISOR_VALUE_COLUMN = 8
+
+TRACEABILITY_COLUMNS: tuple[int, ...] = (
+    7,
+    12,
+    12,
+    8,
+    9,
+    14,
+    20,
+    30,
+    8,
+    11,
+    8,
+    11,
+    11,
+    9,
+    15,
+    15,
+    32,
+    20,
+    8,
+    22,
+    20,
+    28,
+)
+TRACEABILITY_LAST_COLUMN = len(TRACEABILITY_COLUMNS) - 1
+TRACEABILITY_HEADER_ROW = 5
+TRACEABILITY_DIVISOR_ROW = 3
+TRACEABILITY_DIVISOR_COLUMN = 15
+# El anexo se imprime a dos páginas de ancho: el título se limita a la primera.
+TRACEABILITY_FIRST_PAGE_COLUMN = 12
+
+TRACEABILITY_HEADERS = (
+    "Año",
+    "Fecha inicio",
+    "Fecha fin",
+    "Días calendario",
+    "Semanas",
+    "IBL reportado",
+    "Método IBL",
+    "Evidencia IBL",
+    "Revisión IBL",
+    "IPC inicial (promedio anual)",
+    "Meses IPC inicial",
+    "Período IPC actual",
+    "IPC actual",
+    "Factor de indexación",
+    "IBC mensual actualizado",
+    "IBC semanal actualizado",
+    "Advertencias IPC",
+    "Origen CETIL",
+    "Página CETIL",
+    "Cargo",
+    "Entidad",
+    "Documento CETIL",
+)
 
 
 @dataclass(frozen=True)
@@ -20,10 +114,6 @@ class IpcExportInfo:
     fecha_ipc_actual: date
     total_registros: int
     periodo: str = ""
-
-
-def _money(value: Decimal) -> float:
-    return float(value.quantize(Decimal("0.01")))
 
 
 def safe_filename_document(documento: str | None) -> str:
@@ -66,19 +156,28 @@ def build_liquidacion_xlsx(
     cetil_result: CetilExtractionResult | None = None,
     ipc_info: IpcExportInfo | None = None,
 ) -> bytes:
-    """Genera el XLSX con los valores ya calculados por el backend.
+    """Genera el XLSX de liquidación con fórmulas y valor cacheado del backend.
 
-    El libro no contiene fórmulas de cálculo: días, indexación e ISV se
-    escriben como valores para que Excel no pueda producir un segundo
-    resultado distinto al del motor.
+    Decisión ``DEC-EXCEL-002``: el backend sigue siendo la única fuente del
+    resultado. Cada celda calculada conserva la fórmula de Excel que explica la
+    operación, pero se escribe con el valor ya calculado por el motor como
+    valor cacheado. Así el libro se ve idéntico antes de recalcular y Excel
+    puede recalcular con los mismos insumos sin producir un resultado distinto.
+
+    Las fórmulas se escriben en sintaxis OOXML (``SUM``, ``AVERAGE``) porque
+    Excel en español las localiza al mostrarlas. Escribir ``SUMA`` o
+    ``PROMEDIO`` directamente produciría ``#NAME?``.
     """
     output = io.BytesIO()
 
     with _ExcelWorkbook(output) as writer:
         workbook = writer.book
+        palette = ReportPalette()
+        formats = build_formats(workbook, palette)
         worksheet = workbook.add_worksheet("Liquidación")
         traceability = workbook.add_worksheet("Trazabilidad")
-        formats = _build_formats(workbook)
+        worksheet.set_tab_color(palette.brand)
+        traceability.set_tab_color(palette.muted)
 
         _write_liquidacion_sheet(
             worksheet,
@@ -114,40 +213,6 @@ class _ExcelWorkbook:
         self.book.close()
 
 
-def _build_formats(workbook) -> dict[str, object]:  # noqa: ANN001
-    return {
-        "title": workbook.add_format(
-            {"bold": True, "font_size": 14, "align": "center", "valign": "vcenter"}
-        ),
-        "header": workbook.add_format(
-            {
-                "bold": True,
-                "bg_color": "#D9EAF7",
-                "border": 1,
-                "align": "center",
-                "valign": "vcenter",
-                "text_wrap": True,
-            }
-        ),
-        "money": workbook.add_format({"num_format": "$ #,##0.00", "border": 1}),
-        "num": workbook.add_format({"num_format": "#,##0.000", "border": 1}),
-        "percent": workbook.add_format({"num_format": "0.000%", "border": 1}),
-        "int": workbook.add_format({"num_format": "#,##0", "border": 1}),
-        "date": workbook.add_format({"num_format": "dd/mm/yyyy", "border": 1}),
-        "cell": workbook.add_format({"border": 1, "text_wrap": True, "valign": "top"}),
-        "label": workbook.add_format(
-            {"bold": True, "bg_color": "#F3F6FA", "border": 1, "valign": "top"}
-        ),
-        "total_label": workbook.add_format(
-            {"bold": True, "bg_color": "#E2F0D9", "border": 1}
-        ),
-        "total_value": workbook.add_format(
-            {"bold": True, "num_format": "$ #,##0.00", "border": 1}
-        ),
-        "note": workbook.add_format({"italic": True, "font_color": "#5B6475"}),
-    }
-
-
 def _write_liquidacion_sheet(
     worksheet,  # noqa: ANN001
     resultado: ResultadoLiquidacion,
@@ -156,153 +221,550 @@ def _write_liquidacion_sheet(
     ipc_info: IpcExportInfo | None,
     formats: dict[str, object],
 ) -> None:
-    worksheet.merge_range(
-        "A1:K1",
-        "LIQUIDACIÓN DE INDEMNIZACIÓN SUSTITUTIVA DE VEJEZ",
+    periods = list(resultado.periodos)
+    if not periods:
+        raise ValueError("La liquidación no contiene periodos para exportar.")
+    layout = LIQUIDACION_LAYOUT
+
+    for index, width in enumerate(LIQUIDACION_COLUMNS):
+        worksheet.set_column(index, index, width)
+
+    _write_title(worksheet, layout, formats)
+    _write_metadata(
+        worksheet,
+        layout,
+        resultado,
+        cetil_result=cetil_result,
+        ipc_info=ipc_info,
+        formats=formats,
+    )
+    _write_kpis(worksheet, layout, resultado, formats)
+    _write_annual_table(worksheet, layout, resultado, formats)
+    _write_totals(worksheet, layout, resultado, formats)
+
+    notes_row, warning_text = _write_notes(
+        worksheet,
+        layout,
+        resultado,
+        ipc_info=ipc_info,
+        formats=formats,
+    )
+    last_row = notes_row
+    if warning_text:
+        warning_row = notes_row + 1
+        write_merged(
+            worksheet,
+            warning_row,
+            0,
+            LIQUIDACION_LAST_COLUMN,
+            warning_text,
+            formats["warning"],
+        )
+        worksheet.set_row(
+            warning_row,
+            text_height(warning_text, chars_per_line=165, line_height=10, padding=6),
+        )
+        last_row = warning_row
+
+    apply_print_setup(
+        worksheet,
+        last_row=last_row,
+        last_col=LIQUIDACION_LAST_COLUMN,
+        fit_width=1,
+        fit_height=1,
+        footer_left="AppIndemnizaciones · Reporte de liquidación",
+        footer_right="Página &P de &N",
+    )
+
+
+def _write_title(worksheet, layout, formats) -> None:  # noqa: ANN001
+    write_merged(
+        worksheet,
+        layout.title_row,
+        0,
+        LIQUIDACION_LAST_COLUMN,
+        TITLE,
         formats["title"],
     )
-    _write_cetil_metadata(
+    worksheet.set_row(layout.title_row, 26)
+    write_merged(
         worksheet,
-        cetil_result,
-        formats["label"],
-        formats["cell"],
-        formats["date"],
+        layout.subtitle_row,
+        0,
+        LIQUIDACION_LAST_COLUMN,
+        SUBTITLE,
+        formats["subtitle"],
     )
-    _write_ipc_metadata(
+    worksheet.set_row(layout.subtitle_row, 14)
+    worksheet.set_row(layout.spacer_row, 4)
+
+
+def _write_metadata(
+    worksheet,  # noqa: ANN001
+    layout,  # noqa: ANN001
+    resultado: ResultadoLiquidacion,
+    *,
+    cetil_result: CetilExtractionResult | None,
+    ipc_info: IpcExportInfo | None,
+    formats: dict[str, object],
+) -> None:
+    metadata = cetil_result.metadata if cetil_result else None
+    trabajador = cetil_result.trabajador if cetil_result else None
+    entidad = cetil_result.entidad_empleadora if cetil_result else None
+    first_period = resultado.periodos[0] if resultado.periodos else None
+    ipc_actual = (
+        ipc_info.ipc_actual
+        if ipc_info
+        else (first_period.ipc_actual if first_period else None)
+    )
+
+    write_merged(
         worksheet,
-        ipc_info,
-        resultado,
-        formats["label"],
-        formats["cell"],
-        formats["date"],
-        formats["num"],
+        layout.data_section_row,
+        0,
+        5,
+        "DATOS DEL TRABAJADOR",
+        formats["section"],
+    )
+    write_merged(
+        worksheet,
+        layout.data_section_row,
+        6,
+        LIQUIDACION_LAST_COLUMN,
+        "PARÁMETROS DE LIQUIDACIÓN",
+        formats["section"],
+    )
+    worksheet.set_row(layout.data_section_row, 16)
+
+    person_fields = (
+        ("Nombre completo", trabajador.nombre_completo if trabajador else None, "text"),
+        ("Documento", trabajador.documento if trabajador else None, "text"),
+        (
+            "Fecha de nacimiento",
+            trabajador.fecha_nacimiento if trabajador else None,
+            "date",
+        ),
+        (
+            "Entidad empleadora",
+            entidad.nombre_entidad_empleadora if entidad else None,
+            "text",
+        ),
+        ("NIT entidad", entidad.nit_entidad_empleadora if entidad else None, "text"),
+    )
+    parameter_fields = (
+        ("Número CETIL", metadata.numero_cetil if metadata else None, "text"),
+        (
+            "Fecha CETIL",
+            metadata.fecha_expedicion_cetil if metadata else None,
+            "date",
+        ),
+        ("Fecha de liquidación", resultado.fecha_liquidacion, "date"),
+        ("IPC actual/final", ipc_actual, "number"),
+        ("Divisor semanal", MONTHLY_TO_WEEKLY_DIVISOR, "number"),
     )
 
-    headers = [
-        "AÑO",
-        "FECHA DESDE",
-        "FECHA HASTA",
-        "No. Días",
-        "No. Sem.",
-        "IBL Reportado",
-        "% Apl.",
-        "IPC Inicial",
-        "IPC Actual",
-        "Indexación IBC Mensual",
-        "IBC Semanal Actualizado",
-    ]
-    for col_num, value in enumerate(headers):
-        worksheet.write(12, col_num, value, formats["header"])
+    for index, (label, value, kind) in enumerate(person_fields):
+        row = layout.first_field_row + index
+        write_merged(worksheet, row, 0, 1, label, formats["field_label"])
+        _write_field_value(
+            worksheet,
+            row,
+            2,
+            5,
+            value,
+            kind,
+            formats,
+            placeholder="No disponible",
+        )
+        worksheet.set_row(row, 15)
 
-    widths = [8, 14, 14, 12, 12, 16, 10, 12, 12, 22, 24]
-    for col_num, width in enumerate(widths):
-        worksheet.set_column(col_num, col_num, width)
-
-    first_data_row = 13
-    for offset, row in enumerate(resultado.periodos):
-        excel_row = first_data_row + offset
-        worksheet.set_row(excel_row, 20)
-        worksheet.write(excel_row, 0, row.anio or row.fecha_inicio.year, formats["cell"])
-        worksheet.write_datetime(excel_row, 1, row.fecha_inicio, formats["date"])
-        worksheet.write_datetime(excel_row, 2, row.fecha_fin, formats["date"])
-        worksheet.write_number(excel_row, 3, row.dias, formats["int"])
-        worksheet.write_number(excel_row, 4, float(row.semanas), formats["num"])
-        worksheet.write_number(excel_row, 5, _money(row.ibl_reportado), formats["money"])
-        worksheet.write_number(excel_row, 6, float(resultado.ppc), formats["percent"])
-        worksheet.write_number(excel_row, 7, float(row.ipc_inicial), formats["num"])
-        worksheet.write_number(excel_row, 8, float(row.ipc_actual), formats["num"])
-        worksheet.write_number(excel_row, 9, _money(row.ibc_actualizado), formats["money"])
-        worksheet.write_number(
-            excel_row, 10, _money(row.ibc_semanal_actualizado), formats["money"]
+    for index, (label, value, kind) in enumerate(parameter_fields):
+        row = layout.first_field_row + index
+        write_merged(worksheet, row, 6, 7, label, formats["field_label"])
+        placeholder = "No indicada" if kind == "date" else "No disponible"
+        _write_field_value(
+            worksheet,
+            row,
+            8,
+            LIQUIDACION_LAST_COLUMN,
+            value,
+            kind,
+            formats,
+            placeholder=placeholder,
         )
 
-    last_data_row = first_data_row + len(resultado.periodos) - 1
-    total_row = last_data_row + 3
-    worksheet.write(total_row, 0, "DÍAS EN TOTAL", formats["total_label"])
-    worksheet.write_number(total_row, 1, resultado.total_dias, formats["int"])
-    worksheet.write(total_row + 1, 0, "SC", formats["total_label"])
-    worksheet.write_number(total_row + 1, 1, float(resultado.sc), formats["num"])
-    worksheet.write(total_row + 2, 0, "PPC", formats["total_label"])
-    worksheet.write_number(total_row + 2, 1, float(resultado.ppc), formats["percent"])
-    worksheet.write(total_row + 3, 0, "SBC", formats["total_label"])
-    worksheet.write_number(total_row + 3, 1, _money(resultado.sbc), formats["total_value"])
-    worksheet.write(total_row + 4, 0, "LIQUIDACIÓN DE APORTES", formats["total_label"])
-    worksheet.write_number(total_row + 4, 1, _money(resultado.isv), formats["total_value"])
-    worksheet.write(total_row + 5, 0, "SBC x SC x PPC", formats["total_label"])
-    worksheet.write(
-        total_row + 6,
-        0,
-        "Valores calculados por el motor. El libro no contiene fórmulas de cálculo.",
-        formats["note"],
+
+def _write_field_value(
+    worksheet,  # noqa: ANN001
+    row: int,
+    first_col: int,
+    last_col: int,
+    value: object,
+    kind: str,
+    formats: dict[str, object],
+    *,
+    placeholder: str = "No disponible",
+) -> None:
+    if value is None or (isinstance(value, str) and not value.strip()):
+        write_merged(worksheet, row, first_col, last_col, placeholder, formats["field_value"])
+        return
+    if kind == "date" and isinstance(value, date):
+        write_merged_value(
+            worksheet,
+            row,
+            first_col,
+            last_col,
+            value,
+            formats["field_date"],
+            kind="date",
+        )
+        return
+    if kind in {"number", "int", "percent"} and isinstance(value, (int, float, Decimal)):
+        write_merged_value(
+            worksheet,
+            row,
+            first_col,
+            last_col,
+            float(value),
+            formats[f"field_{kind}"],
+            kind="number",
+        )
+        return
+    write_merged(
+        worksheet,
+        row,
+        first_col,
+        last_col,
+        str(value),
+        formats["field_value"],
     )
 
-    worksheet.freeze_panes(13, 0)
 
-
-def _write_cetil_metadata(
+def _write_kpis(
     worksheet,  # noqa: ANN001
-    result: CetilExtractionResult | None,
-    label_fmt,
-    cell_fmt,
-    date_fmt,
-) -> None:
-    metadata = result.metadata if result else None
-    trabajador = result.trabajador if result else None
-    entidad = result.entidad_empleadora if result else None
-    values = [
-        ("Nombre completo", trabajador.nombre_completo if trabajador else None),
-        ("Documento", trabajador.documento if trabajador else None),
-        ("Fecha nacimiento", trabajador.fecha_nacimiento if trabajador else None),
-        ("Número CETIL", metadata.numero_cetil if metadata else None),
-        ("Fecha CETIL", metadata.fecha_expedicion_cetil if metadata else None),
-        ("Entidad empleadora", entidad.nombre_entidad_empleadora if entidad else None),
-        ("NIT entidad", entidad.nit_entidad_empleadora if entidad else None),
-    ]
-    for index, (label, value) in enumerate(values, start=1):
-        worksheet.write(index, 0, label, label_fmt)
-        if isinstance(value, date):
-            worksheet.write_datetime(index, 1, value, date_fmt)
-        else:
-            worksheet.write(index, 1, value or "No detectado", cell_fmt)
-
-
-def _write_ipc_metadata(
-    worksheet,  # noqa: ANN001
-    ipc_info: IpcExportInfo | None,
+    layout,  # noqa: ANN001
     resultado: ResultadoLiquidacion,
-    label_fmt,
-    cell_fmt,
-    date_fmt,
-    num_fmt,
+    formats: dict[str, object],
 ) -> None:
-    worksheet.write(1, 3, "IPC actual/final", label_fmt)
-    if ipc_info:
-        worksheet.write_number(1, 4, float(ipc_info.ipc_actual), num_fmt)
-        worksheet.write(2, 3, "Fecha IPC actual/final", label_fmt)
-        worksheet.write_datetime(2, 4, ipc_info.fecha_ipc_actual, date_fmt)
-        worksheet.write(3, 3, "Registros IPC", label_fmt)
-        worksheet.write_number(3, 4, ipc_info.total_registros, cell_fmt)
-    else:
-        worksheet.write(1, 4, "No disponible", cell_fmt)
+    totals_row = layout.totals_row(len(resultado.periodos))
+    isv_formula = (
+        f"={_ref(layout.kpi_value_row, 4)}"
+        f"*{_ref(layout.kpi_value_row, 2)}"
+        f"*{_ref(layout.kpi_value_row, PPC_KPI_COLUMN)}"
+    )
 
-    warnings = _ipc_warnings(resultado)
-    worksheet.write(4, 3, "Advertencias IPC anual", label_fmt)
-    worksheet.write(4, 4, "\n".join(warnings) if warnings else "Sin advertencias", cell_fmt)
+    write_merged(
+        worksheet,
+        layout.kpi_section_row,
+        0,
+        LIQUIDACION_LAST_COLUMN,
+        "RESULTADO DE LA LIQUIDACIÓN",
+        formats["section"],
+    )
+    worksheet.set_row(layout.kpi_section_row, 16)
 
-    worksheet.write(5, 3, "Fecha de liquidación", label_fmt)
-    if resultado.fecha_liquidacion:
-        worksheet.write_datetime(5, 4, resultado.fecha_liquidacion, date_fmt)
-    else:
-        worksheet.write(5, 4, "No indicada", cell_fmt)
+    cards = (
+        (
+            0,
+            1,
+            "DÍAS CALENDARIO",
+            "kpi_label",
+            "kpi_int",
+            f"={_ref(totals_row, 3)}",
+            resultado.total_dias,
+        ),
+        (
+            2,
+            3,
+            "SEMANAS (SC)",
+            "kpi_label",
+            "kpi_num",
+            f"={_ref(totals_row, 4)}",
+            float(resultado.sc),
+        ),
+        (
+            4,
+            5,
+            "SALARIO BASE (SBC)",
+            "kpi_label",
+            "kpi_money",
+            f"={_ref(totals_row, 10)}",
+            float(resultado.sbc),
+        ),
+        (
+            6,
+            7,
+            "PPC APLICADO",
+            "kpi_label",
+            "kpi_percent",
+            None,
+            float(resultado.ppc),
+        ),
+        (
+            8,
+            10,
+            "LIQUIDACIÓN DE APORTES (ISV)",
+            "kpi_label_accent",
+            "kpi_money_accent",
+            isv_formula,
+            float(resultado.isv),
+        ),
+    )
 
-    worksheet.write(6, 3, "Fuente IPC actual", label_fmt)
-    worksheet.write(6, 4, resultado.ipc_actual_fuente or "N/D", cell_fmt)
+    for first_col, last_col, label, label_format, value_format, formula, cached in cards:
+        write_merged(
+            worksheet,
+            layout.kpi_label_row,
+            first_col,
+            last_col,
+            label,
+            formats[label_format],
+        )
+        write_merged(
+            worksheet,
+            layout.kpi_value_row,
+            first_col,
+            last_col,
+            "",
+            formats[value_format],
+        )
+        if formula is None:
+            worksheet.write_number(
+                layout.kpi_value_row,
+                first_col,
+                float(cached),
+                formats[value_format],
+            )
+        else:
+            worksheet.write_formula(
+                layout.kpi_value_row,
+                first_col,
+                formula,
+                formats[value_format],
+                cached,
+            )
 
-    worksheet.write(7, 3, "Período IPC actual", label_fmt)
-    worksheet.write(7, 4, resultado.ipc_actual_periodo or "N/D", cell_fmt)
+    worksheet.set_row(layout.kpi_label_row, 15)
+    worksheet.set_row(layout.kpi_value_row, 24)
 
-    worksheet.write(8, 3, "Convención de días", label_fmt)
-    worksheet.write(8, 4, "Días calendario reales (incluye extremos)", cell_fmt)
+
+def _write_annual_table(
+    worksheet,  # noqa: ANN001
+    layout,  # noqa: ANN001
+    resultado: ResultadoLiquidacion,
+    formats: dict[str, object],
+) -> None:
+    periods = resultado.periodos
+    first_data_row = layout.first_data_row
+    divisor_cell = _ref(
+        layout.first_field_row + layout.divisor_field_index,
+        DIVISOR_VALUE_COLUMN,
+        absolute=True,
+    )
+    ppc_cell = _ref(layout.kpi_value_row, PPC_KPI_COLUMN, absolute=True)
+
+    write_merged(
+        worksheet,
+        layout.table_section_row,
+        0,
+        LIQUIDACION_LAST_COLUMN,
+        f"DETALLE ANUAL INDEXADO · {len(periods)} PERIODOS",
+        formats["section"],
+    )
+    worksheet.set_row(layout.table_section_row, 16)
+
+    for column, header in enumerate(TABLE_HEADERS):
+        worksheet.write(layout.table_header_row, column, header, formats["header"])
+    worksheet.set_row(layout.table_header_row, 28)
+
+    for offset, row in enumerate(periods):
+        excel_row = first_data_row + offset
+        spreadsheet_row = excel_row + 1
+        band = offset % 2
+        worksheet.write(
+            excel_row,
+            0,
+            row.anio or row.fecha_inicio.year,
+            formats[f"cell_center_{band}"],
+        )
+        worksheet.write_datetime(
+            excel_row,
+            1,
+            row.fecha_inicio,
+            formats[f"cell_date_{band}"],
+        )
+        worksheet.write_datetime(
+            excel_row,
+            2,
+            row.fecha_fin,
+            formats[f"cell_date_{band}"],
+        )
+        worksheet.write_formula(
+            excel_row,
+            3,
+            f"=C{spreadsheet_row}-B{spreadsheet_row}+1",
+            formats[f"cell_int_{band}"],
+            row.dias,
+        )
+        worksheet.write_formula(
+            excel_row,
+            4,
+            f"=D{spreadsheet_row}/7",
+            formats[f"cell_num_{band}"],
+            float(row.semanas),
+        )
+        worksheet.write_number(
+            excel_row,
+            5,
+            float(row.ibl_reportado),
+            formats[f"cell_money_{band}"],
+        )
+        worksheet.write_formula(
+            excel_row,
+            6,
+            f"={ppc_cell}",
+            formats[f"cell_percent_{band}"],
+            float(resultado.ppc),
+        )
+        worksheet.write_number(
+            excel_row,
+            7,
+            float(row.ipc_inicial),
+            formats[f"cell_num_{band}"],
+        )
+        worksheet.write_number(
+            excel_row,
+            8,
+            float(row.ipc_actual),
+            formats[f"cell_num_{band}"],
+        )
+        worksheet.write_formula(
+            excel_row,
+            9,
+            f"=F{spreadsheet_row}*(I{spreadsheet_row}/H{spreadsheet_row})",
+            formats[f"cell_money_{band}"],
+            float(row.ibc_actualizado),
+        )
+        worksheet.write_formula(
+            excel_row,
+            10,
+            f"=J{spreadsheet_row}/{divisor_cell}",
+            formats[f"cell_money_{band}"],
+            float(row.ibc_semanal_actualizado),
+        )
+        worksheet.set_row(excel_row, 15)
+
+
+def _write_totals(
+    worksheet,  # noqa: ANN001
+    layout,  # noqa: ANN001
+    resultado: ResultadoLiquidacion,
+    formats: dict[str, object],
+) -> None:
+    first_data_row = layout.first_data_row
+    last_data_row = first_data_row + len(resultado.periodos) - 1
+    totals_row = layout.totals_row(len(resultado.periodos))
+
+    write_merged(
+        worksheet,
+        totals_row,
+        0,
+        2,
+        "TOTALES DEL PERÍODO",
+        formats["total_text"],
+    )
+    for column in range(3, LIQUIDACION_LAST_COLUMN + 1):
+        worksheet.write_blank(totals_row, column, None, formats["total_blank"])
+
+    worksheet.write_formula(
+        totals_row,
+        3,
+        f"=SUM(D{first_data_row + 1}:D{last_data_row + 1})",
+        formats["total_int"],
+        resultado.total_dias,
+    )
+    worksheet.write_formula(
+        totals_row,
+        4,
+        f"=D{totals_row + 1}/7",
+        formats["total_num"],
+        float(resultado.sc),
+    )
+    worksheet.write(totals_row, 9, "SBC", formats["total_text"])
+    worksheet.write_formula(
+        totals_row,
+        10,
+        f"=AVERAGE(K{first_data_row + 1}:K{last_data_row + 1})",
+        formats["total_money"],
+        float(resultado.sbc),
+    )
+    worksheet.set_row(totals_row, 18)
+
+
+def _write_notes(
+    worksheet,  # noqa: ANN001
+    layout,  # noqa: ANN001
+    resultado: ResultadoLiquidacion,
+    *,
+    ipc_info: IpcExportInfo | None,
+    formats: dict[str, object],
+) -> tuple[int, str]:
+    notes_row = layout.notes_row(len(resultado.periodos))
+    text = _notes_text(resultado, ipc_info)
+    write_merged(
+        worksheet,
+        notes_row,
+        0,
+        LIQUIDACION_LAST_COLUMN,
+        text,
+        formats["note"],
+    )
+    worksheet.set_row(
+        notes_row,
+        text_height(text, chars_per_line=175, line_height=10, padding=6),
+    )
+    warnings = _export_warnings(resultado)
+    warning_text = "Advertencias: " + " · ".join(warnings) if warnings else ""
+    return notes_row, warning_text
+
+
+def _notes_text(
+    resultado: ResultadoLiquidacion,
+    ipc_info: IpcExportInfo | None,
+) -> str:
+    source = _ipc_source_label(resultado.ipc_actual_fuente)
+    period = resultado.ipc_actual_periodo or "N/D"
+    records = f"{ipc_info.total_registros} registros" if ipc_info else "registros N/D"
+    return (
+        "Fórmulas del reporte: Días = Fecha hasta − Fecha desde + 1 · "
+        "Semanas (SC) = Días / 7 · IBC mensual = IBL × (IPC actual / IPC inicial) · "
+        "IBC semanal = IBC mensual / divisor semanal · "
+        "SBC = promedio de IBC semanal · ISV = SBC × SC × PPC.\n"
+        f"Fuente IPC: {source} · Período {period} · {records} · "
+        "Días calendario reales inclusivos. Los valores en caché provienen del motor "
+        "y las fórmulas usan los mismos insumos."
+    )
+
+
+_IPC_SOURCE_LABELS = {
+    "fecha_liquidacion": "fecha de liquidación",
+    "ultimo_registro": "último registro disponible",
+}
+
+
+def _ipc_source_label(value: str | None) -> str:
+    if not value:
+        return "N/D"
+    return _IPC_SOURCE_LABELS.get(value, value.replace("_", " "))
+
+
+def _export_warnings(resultado: ResultadoLiquidacion) -> list[str]:
+    warnings = list(resultado.advertencias)
+    for row in resultado.periodos:
+        for warning in row.advertencias_ipc:
+            if warning not in warnings:
+                warnings.append(warning)
+    return warnings
 
 
 def _write_traceability_sheet(
@@ -313,126 +775,306 @@ def _write_traceability_sheet(
     ipc_info: IpcExportInfo | None,
     formats: dict[str, object],
 ) -> None:
-    worksheet.set_column("A:A", 8)
-    worksheet.set_column("B:C", 13)
-    worksheet.set_column("D:E", 11)
-    worksheet.set_column("F:F", 16)
-    worksheet.set_column("G:H", 28)
-    worksheet.set_column("I:I", 12)
-    worksheet.set_column("J:M", 14)
-    worksheet.set_column("N:P", 20)
-    worksheet.set_column("Q:Q", 42)
-    worksheet.set_column("R:T", 24)
-    worksheet.set_column("U:U", 30)
-    worksheet.set_column("V:V", 32)
+    for index, width in enumerate(TRACEABILITY_COLUMNS):
+        worksheet.set_column(index, index, width)
 
-    worksheet.merge_range("A1:V1", "TRAZABILIDAD DE LA LIQUIDACIÓN", formats["title"])
-    worksheet.write(1, 0, "Fecha de liquidación", formats["label"])
-    if resultado.fecha_liquidacion:
-        worksheet.write_datetime(1, 1, resultado.fecha_liquidacion, formats["date"])
+    write_merged(
+        worksheet,
+        0,
+        0,
+        TRACEABILITY_FIRST_PAGE_COLUMN,
+        "TRAZABILIDAD DE LA LIQUIDACIÓN",
+        formats["annex_title"],
+    )
+    worksheet.set_row(0, 24)
+    write_merged(
+        worksheet,
+        1,
+        0,
+        TRACEABILITY_FIRST_PAGE_COLUMN,
+        "Auditoría por fila · fuentes IPC, método IBL y procedencia CETIL",
+        formats["annex_subtitle"],
+    )
+    worksheet.set_row(1, 13)
+
+    _write_traceability_parameters(worksheet, resultado, ipc_info, formats)
+
+    warnings = _export_warnings(resultado)
+    if warnings:
+        write_merged(worksheet, 4, 0, 1, "Advertencias", formats["field_label"])
+        warning_text = "\n".join(warnings)
+        write_merged(
+            worksheet,
+            4,
+            2,
+            TRACEABILITY_LAST_COLUMN,
+            warning_text,
+            formats["warning"],
+        )
+        worksheet.set_row(
+            4,
+            text_height(warning_text, chars_per_line=260, line_height=10, padding=6),
+        )
     else:
-        worksheet.write(1, 1, "No indicada (se usó el IPC más reciente)", formats["cell"])
-    worksheet.write(1, 3, "Fuente IPC actual", formats["label"])
-    worksheet.write(1, 4, resultado.ipc_actual_fuente or "N/D", formats["cell"])
-    worksheet.write(1, 6, "Período IPC actual", formats["label"])
-    worksheet.write(1, 7, resultado.ipc_actual_periodo or "N/D", formats["cell"])
-    worksheet.write(1, 9, "Registros IPC", formats["label"])
-    if ipc_info:
-        worksheet.write_number(1, 10, ipc_info.total_registros, formats["int"])
-    else:
-        worksheet.write(1, 10, "N/D", formats["cell"])
+        worksheet.set_row(4, 6)
 
-    worksheet.write(2, 0, "Convención de días", formats["label"])
-    worksheet.write(2, 1, "Días calendario reales (incluye extremos)", formats["cell"])
-    worksheet.write(2, 3, "PPC", formats["label"])
-    worksheet.write_number(2, 4, float(resultado.ppc), formats["percent"])
-    worksheet.write(2, 6, "Divisor mensual a semanal", formats["label"])
-    worksheet.write_number(2, 7, 4.345, formats["num"])
-    worksheet.write(2, 9, "Fórmula ISV", formats["label"])
-    worksheet.write(2, 10, "SBC x SC x PPC", formats["cell"])
+    for column, header in enumerate(TRACEABILITY_HEADERS):
+        worksheet.write(
+            TRACEABILITY_HEADER_ROW,
+            column,
+            header,
+            formats["header"],
+        )
+    worksheet.set_row(TRACEABILITY_HEADER_ROW, 42)
 
-    if resultado.advertencias:
-        worksheet.write(3, 0, "Advertencias del cálculo", formats["label"])
-        worksheet.merge_range(3, 1, 3, 6, "\n".join(resultado.advertencias), formats["cell"])
-
-    headers = [
-        "Año",
-        "Fecha inicio",
-        "Fecha fin",
-        "Días calendario",
-        "Semanas",
-        "IBL reportado",
-        "Método IBL",
-        "Evidencia IBL",
-        "Revisión IBL",
-        "IPC inicial (promedio anual)",
-        "Meses IPC inicial",
-        "Período IPC actual",
-        "IPC actual",
-        "Factor de indexación",
-        "IBC mensual actualizado",
-        "IBC semanal actualizado",
-        "Advertencias IPC",
-        "Origen CETIL",
-        "Página CETIL",
-        "Cargo",
-        "Entidad",
-        "Documento CETIL",
-    ]
-    header_row = 5
-    for col_num, value in enumerate(headers):
-        worksheet.write(header_row, col_num, value, formats["header"])
-
+    trace_divisor_cell = _ref(
+        TRACEABILITY_DIVISOR_ROW,
+        TRACEABILITY_DIVISOR_COLUMN,
+        absolute=True,
+    )
     annual_rows = cetil_result.filas_liquidables_anuales if cetil_result else []
     for offset, row in enumerate(resultado.periodos):
-        excel_row = header_row + 1 + offset
+        excel_row = TRACEABILITY_HEADER_ROW + 1 + offset
+        spreadsheet_row = excel_row + 1
+        band = offset % 2
         annual = _match_annual_row(row, annual_rows)
         factor = (
             row.ipc_actual / row.ipc_inicial if row.ipc_inicial else Decimal(0)
         )
-        worksheet.write(excel_row, 0, row.anio or row.fecha_inicio.year, formats["cell"])
-        worksheet.write_datetime(excel_row, 1, row.fecha_inicio, formats["date"])
-        worksheet.write_datetime(excel_row, 2, row.fecha_fin, formats["date"])
-        worksheet.write_number(excel_row, 3, row.dias, formats["int"])
-        worksheet.write_number(excel_row, 4, float(row.semanas), formats["num"])
-        worksheet.write_number(excel_row, 5, _money(row.ibl_reportado), formats["money"])
-        worksheet.write(excel_row, 6, _annual_value(annual, "ibl_metodo"), formats["cell"])
-        worksheet.write(excel_row, 7, _annual_value(annual, "ibl_evidencia"), formats["cell"])
+        metodo = _annual_value(annual, "ibl_metodo")
+        evidencia = _annual_value(annual, "ibl_evidencia")
+        row_warnings = "\n".join(row.advertencias_ipc) if row.advertencias_ipc else ""
+        origen = _annual_value(annual, "periodo_origen")
+        cargo = row.cargo or _annual_value(annual, "cargo")
+        entidad = row.entidad or _annual_value(annual, "entidad")
+        documento = (
+            row.documento_cetil
+            or _annual_value(annual, "documento_cetil")
+            or ""
+        )
+
+        worksheet.write(
+            excel_row,
+            0,
+            row.anio or row.fecha_inicio.year,
+            formats[f"cell_center_{band}"],
+        )
+        worksheet.write_datetime(
+            excel_row,
+            1,
+            row.fecha_inicio,
+            formats[f"cell_date_{band}"],
+        )
+        worksheet.write_datetime(
+            excel_row,
+            2,
+            row.fecha_fin,
+            formats[f"cell_date_{band}"],
+        )
+        worksheet.write_formula(
+            excel_row,
+            3,
+            f"=C{spreadsheet_row}-B{spreadsheet_row}+1",
+            formats[f"cell_int_{band}"],
+            row.dias,
+        )
+        worksheet.write_formula(
+            excel_row,
+            4,
+            f"=D{spreadsheet_row}/7",
+            formats[f"cell_num_{band}"],
+            float(row.semanas),
+        )
+        worksheet.write_number(
+            excel_row,
+            5,
+            float(row.ibl_reportado),
+            formats[f"cell_money_{band}"],
+        )
+        worksheet.write(excel_row, 6, metodo, formats[f"cell_text_{band}"])
+        worksheet.write(excel_row, 7, evidencia, formats[f"cell_text_{band}"])
         worksheet.write(
             excel_row,
             8,
             "Sí" if annual is not None and annual.ibl_requiere_revision else "No",
-            formats["cell"],
+            formats[f"cell_center_{band}"],
         )
-        worksheet.write_number(excel_row, 9, float(row.ipc_inicial), formats["num"])
-        worksheet.write_number(excel_row, 10, row.ipc_meses_usados or 0, formats["int"])
-        worksheet.write(excel_row, 11, row.periodo_ipc_actual, formats["cell"])
-        worksheet.write_number(excel_row, 12, float(row.ipc_actual), formats["num"])
-        worksheet.write_number(excel_row, 13, float(factor), formats["num"])
-        worksheet.write_number(excel_row, 14, _money(row.ibc_actualizado), formats["money"])
         worksheet.write_number(
-            excel_row, 15, _money(row.ibc_semanal_actualizado), formats["money"]
+            excel_row,
+            9,
+            float(row.ipc_inicial),
+            formats[f"cell_num_{band}"],
+        )
+        worksheet.write_number(
+            excel_row,
+            10,
+            row.ipc_meses_usados or 0,
+            formats[f"cell_int_{band}"],
         )
         worksheet.write(
             excel_row,
-            16,
-            "\n".join(row.advertencias_ipc) if row.advertencias_ipc else "",
-            formats["cell"],
+            11,
+            row.periodo_ipc_actual,
+            formats[f"cell_center_{band}"],
         )
-        worksheet.write(excel_row, 17, _annual_value(annual, "periodo_origen"), formats["cell"])
-        worksheet.write(excel_row, 18, _annual_value(annual, "fuente_pagina"), formats["cell"])
-        worksheet.write(excel_row, 19, row.cargo or _annual_value(annual, "cargo"), formats["cell"])
-        worksheet.write(
-            excel_row, 20, row.entidad or _annual_value(annual, "entidad"), formats["cell"]
+        worksheet.write_number(
+            excel_row,
+            12,
+            float(row.ipc_actual),
+            formats[f"cell_num_{band}"],
         )
+        worksheet.write_formula(
+            excel_row,
+            13,
+            f"=M{spreadsheet_row}/J{spreadsheet_row}",
+            formats[f"cell_num_{band}"],
+            float(factor),
+        )
+        worksheet.write_formula(
+            excel_row,
+            14,
+            f"=F{spreadsheet_row}*N{spreadsheet_row}",
+            formats[f"cell_money_{band}"],
+            float(row.ibc_actualizado),
+        )
+        worksheet.write_formula(
+            excel_row,
+            15,
+            f"=O{spreadsheet_row}/{trace_divisor_cell}",
+            formats[f"cell_money_{band}"],
+            float(row.ibc_semanal_actualizado),
+        )
+        worksheet.write(excel_row, 16, row_warnings, formats[f"cell_text_{band}"])
+        worksheet.write(excel_row, 17, origen, formats[f"cell_text_{band}"])
         worksheet.write(
             excel_row,
-            21,
-            row.documento_cetil or _annual_value(annual, "documento_cetil") or "",
-            formats["cell"],
+            18,
+            _annual_value(annual, "fuente_pagina"),
+            formats[f"cell_center_{band}"],
+        )
+        worksheet.write(excel_row, 19, cargo, formats[f"cell_text_{band}"])
+        worksheet.write(excel_row, 20, entidad, formats[f"cell_text_{band}"])
+        worksheet.write(excel_row, 21, documento, formats[f"cell_text_{band}"])
+        worksheet.set_row(
+            excel_row,
+            wrapped_row_height(
+                (
+                    (metodo, 18),
+                    (evidencia, 28),
+                    (row_warnings, 28),
+                    (origen, 18),
+                    (cargo, 16),
+                    (entidad, 18),
+                    (documento, 20),
+                ),
+                line_height=10,
+                padding=5,
+            ),
         )
 
-    worksheet.freeze_panes(header_row + 1, 0)
+    last_row = TRACEABILITY_HEADER_ROW + len(resultado.periodos)
+    worksheet.freeze_panes(TRACEABILITY_HEADER_ROW + 1, 0)
+    worksheet.repeat_rows(TRACEABILITY_HEADER_ROW)
+    apply_print_setup(
+        worksheet,
+        last_row=last_row,
+        last_col=TRACEABILITY_LAST_COLUMN,
+        fit_width=2,
+        fit_height=0,
+        footer_left="AppIndemnizaciones · Trazabilidad",
+        footer_right="Página &P de &N",
+    )
+
+
+def _write_traceability_parameters(
+    worksheet,  # noqa: ANN001
+    resultado: ResultadoLiquidacion,
+    ipc_info: IpcExportInfo | None,
+    formats: dict[str, object],
+) -> None:
+    # Cada fila combina cuatro pares etiqueta/valor sobre las 22 columnas.
+    slots = ((0, 1, 2, 5), (6, 7, 8, 12), (13, 14, 15, 17), (18, 19, 20, 21))
+    ppc_cell = _ref(LIQUIDACION_LAYOUT.kpi_value_row, PPC_KPI_COLUMN, absolute=True)
+    divisor_cell = _ref(
+        LIQUIDACION_LAYOUT.first_field_row + LIQUIDACION_LAYOUT.divisor_field_index,
+        DIVISOR_VALUE_COLUMN,
+        absolute=True,
+    )
+    rows = (
+        (
+            ("Fecha de liquidación", resultado.fecha_liquidacion, "date"),
+            ("Fuente IPC actual", _ipc_source_label(resultado.ipc_actual_fuente), "text"),
+            ("Período IPC actual", resultado.ipc_actual_periodo or "N/D", "text"),
+            ("Registros IPC", ipc_info.total_registros if ipc_info else None, "int"),
+        ),
+        (
+            ("Convención de días", "Días calendario reales inclusivos", "text"),
+            ("PPC", float(resultado.ppc), "percent"),
+            ("Divisor semanal", MONTHLY_TO_WEEKLY_DIVISOR, "number"),
+            ("Fórmula ISV", "SBC × SC × PPC", "text"),
+        ),
+    )
+
+    for row, fields in zip((2, 3), rows, strict=True):
+        for (label_first, label_last, value_first, value_last), (
+            label,
+            value,
+            kind,
+        ) in zip(slots, fields, strict=True):
+            write_merged(
+                worksheet,
+                row,
+                label_first,
+                label_last,
+                label,
+                formats["field_label"],
+            )
+            if label == "PPC":
+                # Una sola fuente de PPC en el libro: la tarjeta KPI del reporte.
+                write_merged(
+                    worksheet,
+                    row,
+                    value_first,
+                    value_last,
+                    "",
+                    formats["field_percent"],
+                )
+                worksheet.write_formula(
+                    row,
+                    value_first,
+                    f"='Liquidación'!{ppc_cell}",
+                    formats["field_percent"],
+                    float(value),
+                )
+            elif label == "Divisor semanal":
+                write_merged(
+                    worksheet,
+                    row,
+                    value_first,
+                    value_last,
+                    "",
+                    formats["field_number"],
+                )
+                worksheet.write_formula(
+                    row,
+                    value_first,
+                    f"='Liquidación'!{divisor_cell}",
+                    formats["field_number"],
+                    float(value),
+                )
+            else:
+                placeholder = "No indicada" if kind == "date" else "N/D"
+                _write_field_value(
+                    worksheet,
+                    row,
+                    value_first,
+                    value_last,
+                    value,
+                    kind,
+                    formats,
+                    placeholder=placeholder,
+                )
+        worksheet.set_row(row, 15)
 
 
 def _match_annual_row(
@@ -460,10 +1102,18 @@ def _annual_value(annual: PeriodoLiquidableAnual | None, attribute: str) -> obje
     return "" if value is None else value
 
 
-def _ipc_warnings(resultado: ResultadoLiquidacion) -> list[str]:
-    warnings: list[str] = []
-    for row in resultado.periodos:
-        for warning in row.advertencias_ipc:
-            if warning not in warnings:
-                warnings.append(warning)
-    return warnings
+def _column_letter(column: int) -> str:
+    letters = ""
+    column += 1
+    while column:
+        column, remainder = divmod(column - 1, 26)
+        letters = chr(ord("A") + remainder) + letters
+    return letters
+
+
+def _ref(row: int, column: int, *, absolute: bool = False) -> str:
+    column_letter = _column_letter(column)
+    row_number = row + 1
+    if absolute:
+        return f"${column_letter}${row_number}"
+    return f"{column_letter}{row_number}"

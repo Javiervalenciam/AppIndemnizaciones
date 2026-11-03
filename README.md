@@ -33,7 +33,7 @@ La interfaz está diseñada como una aplicación administrativa moderna con esti
 | **Revisión manual** | Permite revisar y ajustar fechas, IBL reportado, cargo y entidad antes de calcular. |
 | **Motor de cálculo** | Calcula días, semanas, IPC inicial anual, IPC actual, indexación e IBC semanal actualizado. |
 | **KPIs de liquidación** | Muestra DÍAS EN TOTAL, SC, PPC, SBC y LIQUIDACIÓN DE APORTES. |
-| **Exportación Excel** | Genera archivo `.xlsx` con los valores calculados por el backend, datos CETIL, datos IPC y hoja de trazabilidad por fila. |
+| **Exportación Excel** | Genera un reporte compacto de una hoja con los valores del backend, fórmulas explicativas cacheadas y un anexo de trazabilidad por fila. |
 
 ---
 
@@ -236,16 +236,41 @@ Estado esperado:
 
 ## Exportación Excel
 
-El Excel generado incluye:
+El libro generado es un reporte compacto de dos hojas: `Liquidación` (una sola hoja para imprimir) y
+`Trazabilidad` (anexo de auditoría).
 
+La hoja `Liquidación` incluye:
+
+- Título y subtítulo institucional.
 - Datos del trabajador y de los certificados CETIL.
-- Datos de entidad empleadora.
-- Datos IPC usados.
-- Tabla anualizada de liquidación.
-- Valores calculados por el backend, sin fórmulas de recálculo.
-- Hoja de trazabilidad por fila, incluido el documento CETIL de origen.
-- KPIs finales.
-- Nombre de archivo con documento del trabajador cuando está disponible.
+- Entidad empleadora y parámetros de liquidación (fecha de liquidación, IPC actual/final, divisor
+  semanal).
+- KPIs en una sola banda: días calendario, semanas (SC), salario base (SBC), PPC aplicado y
+  liquidación de aportes (ISV) destacada.
+- Tabla anual indexada con fórmulas explicativas y valor cacheado del backend.
+- Fila de totales, notas de fórmulas/fuente IPC y advertencias del motor.
+- Configuración de impresión carta horizontal, una página, cuadrícula oculta y pie con paginación.
+
+Fórmulas con valor cacheado (decisión `DEC-EXCEL-002`):
+
+- `Días = Fecha hasta − Fecha desde + 1`
+- `Semanas (SC) = Días / 7`
+- `IBC mensual = IBL × (IPC actual / IPC inicial)`
+- `IBC semanal = IBC mensual / divisor semanal`
+- `SBC = promedio de IBC semanal`
+- `ISV = SBC × SC × PPC`
+
+El backend sigue siendo la única fuente del resultado: cada fórmula se escribe con el valor ya
+calculado por el motor como valor cacheado. `PPC` y el divisor semanal viven en celdas parámetro
+únicas dentro del libro y las fórmulas las referencian. Las fórmulas se escriben en sintaxis OOXML
+(`SUM`, `AVERAGE`); Excel en español las muestra como `SUMA` y `PROMEDIO`.
+
+La hoja `Trazabilidad` conserva una fila por periodo con días, semanas, IBL, método y evidencia IBL,
+revisión, IPC inicial y sus meses, periodo y valor IPC actual, factor de indexación, IBC mensual y
+semanal, advertencias, origen CETIL, página, cargo, entidad y documento CETIL. Se imprime a dos
+páginas de ancho con el encabezado repetido.
+
+El nombre de archivo usa el documento del trabajador cuando está disponible.
 
 Ejemplo:
 

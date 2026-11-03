@@ -68,6 +68,7 @@ Dash o cualquier frontend futuro solo adapta entradas y presenta salidas.
 | `DEC-DUP-001` | Duplicados exactos no se contabilizan dos veces; solapamientos no resueltos exigen revisión | `APPROVED` | Especificación Fase 3B | Evita doble conteo silencioso y conserva procedencia |
 | `DEC-SBC-001` | La segmentación puramente técnica no debe cambiar el resultado; fórmula definitiva de SBC pendiente | `PARTIALLY_APPROVED` | Especificación Fase 3B | Obliga pruebas de invariancia antes de aprobar fórmula |
 | `DEC-EXCEL-001` | Excel no será un segundo motor de cálculo | `APPROVED` | Especificación Fase 3B | El backend es la única fuente del resultado |
+| `DEC-EXCEL-002` | El Excel escribe fórmulas explicativas con valor cacheado del backend; los parámetros (`PPC`, divisor semanal) viven en celdas únicas referenciadas | `APPROVED` | Rediseño del reporte, Fase 6 | La fórmula documenta la operación sin crear un cálculo alternativo; recalcular con los mismos insumos reproduce el resultado |
 | `DEC-ARCH-001` | El núcleo y sus capas no dependen de Dash | `APPROVED` | Descubrimiento + Fase 3B | Permite cálculo y auditoría fuera de UI |
 | `DEC-DAY-001` | Días calendario reales incluyendo fecha inicial y final; un año completo cuenta 365/366 | `APPROVED` | Decisión del usuario, Fase 4 | Reemplaza el aproximado 30/360 como convención por defecto |
 | `DEC-IBL-001` | SBC por fila anual con el IBL del año; meses heterogéneos o fuera del IBC exigen revisión | `APPROVED` | Decisión D1, Fase 2 | No se inventa una ponderación mensual sin aprobación |
@@ -125,7 +126,7 @@ variable; no se crea PPC histórico, por periodo ni tabla de tasas, y no se prop
 | `MAP-PERIOD-005` | Brechas | Filas con brecha permanecen separadas | `KEEP` | Conservar la brecha como `HistoryIssue`; jamás rellenarla | No inventar historia laboral | `test_current_behavior_gap_keeps_multiple_rows_for_same_year` | Brechas de 1 día, mes, año y entre documentos |
 | `MAP-DAY-001` | `calendar` (días calendario reales) | Diferencia calendario más un día: incluye fecha inicial y final; un año completo cuenta 365/366 | `KEEP` | Convención aprobada para reemplazar la aproximación 30/360 | Evita perder días en periodos de un solo día o en años bisiestos | Pruebas de servicio y exportación | Validación jurídica de inclusión de extremos |
 | `MAP-DAY-002` | `calendar` | `(end - start).days`, extremo final no incluido | `REVIEW_REQUIRED` | Convención e inclusión de extremos pendientes | No existe aprobación jurídica | Pruebas de servicio | Casos de un día, meses, febrero y bisiesto |
-| `MAP-DAY-003` | Excel `DAYS360` | Recalcula días independientemente de Python | `FIX` | Excel recibe días calculados; una fórmula visible es solo explicativa y debe corresponder a versión | Evitar dos motores | `test_current_excel_formulas_duplicate_engine_formulas_by_design` | Paridad backend/exportación sin recálculo independiente |
+| `MAP-DAY-003` | Excel `DAYS360` | Recalcula días independientemente de Python | `FIX` | Excel recibe el valor del backend y una fórmula explicativa `=C-B+1` con valor cacheado (`DEC-EXCEL-002`) | Evitar dos motores | `test_excel_escribe_formulas_explicativas_con_valor_cacheado` | Paridad backend/exportación sin recálculo independiente |
 | `MAP-SBC-001` | SBC | Promedio simple de `IBC_semanal_actualizado` por número de filas | `REVIEW_REQUIRED` | Fórmula definitiva pendiente; exigir invariancia frente a segmentación técnica | El número de filas puede cambiar el resultado | Oráculo dorado y prueba de SBC | Casos A-D de la sección L |
 | `MAP-IBL-001` | Sugerencia IBL | Moda positiva de asignación básica; fallback a total devengado | `KEEP` | Conservar solo como sugerencia `AUTO_EXTRACTED` con evidencia y confianza | Aprovecha extracción sin convertirla en verdad jurídica | Pruebas del extractor de moda/fallback | Ambigüedad, empate, atípicos y corrección humana |
 | `MAP-IBL-002` | Decisión IBL | Valor editable pasa al motor con validación `> 0` | `REVIEW_REQUIRED` | Exigir `ibl_source`, `ibl_value`, `ibl_method`, `ibl_confidence`, `ibl_review_state`; fórmula jurídica pendiente | El origen y método no quedan estructurados | Normalizador/validadores/oráculo | Estado confirmado/corregido y bloqueo por ausencia |
@@ -596,6 +597,74 @@ Las fórmulas solo pueden mostrarse para auditoría y deben ser explicativas del
 calculado. No contienen constantes independientes, no seleccionan IPC, no redefinen días/SBC/ISV y
 no sustituyen el valor del backend. El exportador no decide reglas ni modifica el resultado.
 
+### S.1 Fórmulas explicativas con valor cacheado (`DEC-EXCEL-002`)
+
+Cada celda calculada del libro se escribe con `write_formula(fórmula, valor_cacheado)`. El valor
+cacheado es el resultado exacto del motor; la fórmula es la explicación de la operación. Un libro
+recién abierto muestra el resultado del backend y, si el usuario recarga o recalcula, Excel obtiene
+el mismo número porque los insumos son los mismos.
+
+Reglas de implementación:
+
+- Ninguna fórmula introduce una constante ausente en el motor. `PPC` y el divisor semanal viven en
+  celdas parámetro únicas (`Liquidación!$G$13` y `Liquidación!$I$9`) y todas las referencias apuntan
+  a ellas.
+- Las fórmulas se escriben en sintaxis OOXML (inglesa): `SUM`, `AVERAGE`, `+`, `-`, `*`, `/`. Excel
+  en español las localiza al mostrarlas (`SUMA`, `PROMEDIO`). Escribir nombres traducidos dentro del
+  archivo produce `#NAME?`.
+- Los valores cacheados conservan la precisión completa del backend, no el redondeo de presentación.
+  El formato de celda (`$ #,##0.00`, `#,##0.000`, `0.000%`, `dd/mm/yyyy`) controla lo visible.
+- El libro se marca con `fullCalcOnLoad`; el recálculo reproduce el valor cacheado, no lo reemplaza
+  por una política distinta.
+
+Fórmulas del reporte (`Liquidación`):
+
+| Concepto | Celda | Fórmula |
+| --- | --- | --- |
+| Días calendario inclusivos | `D<fila>` | `=C<fila>-B<fila>+1` |
+| Semanas | `E<fila>` | `=D<fila>/7` |
+| PPC aplicado | `G<fila>` | `=$G$13` |
+| IBC mensual actualizado | `J<fila>` | `=F<fila>*(I<fila>/H<fila>)` |
+| IBC semanal actualizado | `K<fila>` | `=J<fila>/$I$9` |
+| Total de días | `D<totales>` | `=SUM(D<primera>:D<última>)` |
+| SC | `E<totales>` | `=D<totales>/7` |
+| SBC | `K<totales>` | `=AVERAGE(K<primera>:K<última>)` |
+| KPI días / SC / SBC | `A13` / `C13` / `E13` | `=D<totales>` / `=E<totales>` / `=K<totales>` |
+| KPI ISV | `I13` | `=E13*C13*G13` |
+
+Fórmulas de `Trazabilidad`: `=C-B+1`, `=D/7`, `=M/J` (factor de indexación), `=F*N` (IBC mensual) y
+`=O/$P$4` (IBC semanal), con `P4` y `I4` referenciando las celdas parámetro de `Liquidación`.
+
+### S.2 Diseño del reporte
+
+El diseño vive en `services/excel_report_theme.py` y el contenido en `services/excel_exporter.py`.
+El tema aporta paleta, tipografía, formatos, primitivas de combinación de celdas, cálculo de altura
+de filas y configuración de impresión; el exportador no mezcla cálculo con presentación.
+
+`Liquidación` es un reporte compacto de una hoja:
+
+1. título y subtítulo institucional;
+2. datos del trabajador y parámetros de liquidación en dos bloques;
+3. cinco KPIs en una banda (días, semanas/SC, SBC, PPC, ISV) con el ISV destacado;
+4. tabla anual indexada con bordes, bandas alternas y encabezados multilínea;
+5. fila de totales con `SBC` rotulado;
+6. notas de fórmulas y fuente IPC;
+7. advertencias del motor y por fila, si existen.
+
+`Trazabilidad` conserva una fila por periodo con días, semanas, IBL, método y evidencia IBL, revisión,
+IPC inicial y sus meses, periodo y valor IPC actual, factor, IBC mensual y semanal, advertencias,
+origen CETIL, página, cargo, entidad y documento CETIL. La fila de encabezado se repite al imprimir.
+
+### S.3 Impresión
+
+- Carta horizontal, márgenes `0.25 / 0.25 / 0.35 / 0.45`, centrado horizontal, cuadrícula oculta.
+- `Liquidación`: `fit_to_pages(1, 1)`, área de impresión hasta la última fila usada y pie con
+  paginación.
+- `Trazabilidad`: `fit_to_pages(2, 0)`, ancho de dos páginas y alto libre, con encabezado repetido.
+
+`xlsxwriter` omite `fitToWidth`/`fitToHeight` cuando valen `1`; el archivo queda igualmente con
+`pageSetUpPr.fitToPage="1"` y Excel lo interpreta como una sola página.
+
 ## T. Invariantes del sistema
 
 1. `PPC == Decimal("0.0227")` en todas las filas y en el total.
@@ -618,6 +687,7 @@ no sustituyen el valor del backend. El exportador no decide reglas ni modifica e
 18. Excel y UI consumen el resultado; no crean un cálculo alternativo.
 19. Ninguna capa del núcleo depende de Dash.
 20. Los documentos con PII y su texto completo no se filtran a repositorio, logs o fixtures públicos.
+21. Toda fórmula del Excel explica un valor cacheado del motor y referencia los parámetros únicos del libro; recalcular no produce un resultado distinto.
 
 ## U. Pruebas futuras necesarias
 
