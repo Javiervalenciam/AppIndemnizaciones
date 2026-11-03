@@ -73,6 +73,7 @@ Dash o cualquier frontend futuro solo adapta entradas y presenta salidas.
 | `DEC-IBL-001` | SBC por fila anual con el IBL del año; meses heterogéneos o fuera del IBC exigen revisión | `APPROVED` | Decisión D1, Fase 2 | No se inventa una ponderación mensual sin aprobación |
 | `DEC-LIQDATE-001` | Fecha de liquidación opcional; si falta se usa el IPC más reciente y se advierte | `APPROVED` | Decisión D2, Fase 4 | Evita fallos silenciosos y deja la fuente IPC en la trazabilidad |
 | `DEC-OCR-001` | OCR opcional solo con revisión manual obligatoria; si no está disponible, bloquea | `APPROVED` | Decisión D4, Fase 4 | Nunca se calcula con texto OCR sin confirmación humana |
+| `DEC-MULTI-001` | N CETIL por sesión; duplicado no se agrega, identidad distinta se rechaza, periodo idéntico consolida al certificado más reciente y periodo contradictorio o solapado exige revisión | `APPROVED` | Decisión D5, Fase 5 | Una persona puede requerir varios certificados; nunca se elige un valor en conflicto sin revisión |
 
 ### B.2 Decisión PPC no reabrible
 
@@ -134,7 +135,7 @@ variable; no se crea PPC histórico, por periodo ni tabla de tasas, y no se prop
 | `MAP-EXTRACT-001` | Extracción CETIL | Obtiene campos documentales con confianza global y rutas desiguales | `KEEP` | Mantener capacidades como extracción, con `SourceRef`, confianza y revisión por campo | Separar observación de conclusión | `test_cetil_extractor.py` y regresión privada | Variantes reales, OCR, tabla rota y campo por campo |
 | `MAP-EXTRACT-002` | Documento ilegible | No existe un contrato integral de recuperación/bloqueo | `BLOCK` | PDF ilegible sin extracción recuperable no produce historia calculable | No hay evidencia documental utilizable | Casos reales aún pendientes en la línea base | PDF escaneado, cifrado, corrupto, vacío y extensión falsa |
 | `MAP-PRIV-001` | PII de extracción | `raw_text` y texto por página existen en salida; fixtures privados los excluyen | `BLOCK` | Impedir publicación/persistencia insegura; usar referencia segura y hash | Proteger datos personales y texto documental | Regresión CETIL privada | Prueba negativa de PII/texto completo en logs, repositorio y fixtures públicos |
-| `MAP-MULTI-001` | Múltiples CETIL | UI conserva un solo documento activo y reemplaza el anterior | `FIX` | 1 persona → N CETIL → N vinculaciones → una historia versionada | La historia puede requerir varias fuentes | Pruebas de estado de sesión | Asociación de identidad, conflictos, actualización y complementos |
+| `MAP-MULTI-001` | Múltiples CETIL | UI conserva un solo documento activo y reemplaza el anterior | `FIX` | Implementado en Fase 5: `cetil-docs-store` conserva N CETIL, `services/cetil_registry.py` deduplica, valida identidad y consolida periodos con procedencia por fila | La historia puede requerir varias fuentes | `tests/test_cetil_registry.py` y estado de sesión | Asociación de identidad, conflictos, actualización y complementos |
 | `MAP-CLASS-001` | Clasificación | El motor no recibe clasificación de tiempos | `REVIEW_REQUIRED` | Contrato explícito; incertidumbre = `DESCONOCIDO` + revisión | Faltan reglas jurídicas de clasificación | No existe prueba de motor | Casos con evidencia suficiente, insuficiente y contradictoria |
 | `MAP-TRACE-001` | Trazabilidad | No hay versiones integrales ni auditoría por ejecución | `FIX` | Cadena fuente → extracción → revisión → normalización → regla → operación → resultado | Reproducibilidad y explicación | Pruebas parciales de serialización/Excel | Reconstrucción exacta desde `AuditTrail` |
 | `MAP-EXCEL-001` | Excel | Duplica fórmulas y convierte importes cacheados a `float` | `FIX` | Exportar resultado del backend, versiones y fuentes; sin lógica independiente | Evitar divergencia y precisión implícita | Regresión Excel | Libro trazable que coincida con resultado serializado |
@@ -445,6 +446,28 @@ Reglas funcionales:
 - El orden de carga no altera la historia resuelta.
 
 Nunca se unen documentos únicamente por similitud de nombres.
+
+### N.1 Implementación de la sesión multi-CETIL (Fase 5)
+
+- `services/cetil_registry.py` conserva un `CetilDocumento` por certificado, identificado por el
+  hash SHA-256 del PDF y una etiqueta con el número CETIL y la fecha de expedición (o el nombre del
+  archivo si el número no se detectó) que nunca incluye el nombre ni el documento del trabajador.
+- Un certificado con el mismo contenido o con el mismo número y fecha de expedición no se agrega:
+  queda una incidencia `CETIL_MULTI_DOCUMENT_DUPLICATE` con severidad `WARNING`.
+- Un certificado cuyo documento de identidad difiere del ya cargado no se agrega:
+  `CETIL_MULTI_IDENTITY_CONFLICT` con severidad `ERROR`. Si falta el documento en alguno,
+  se agrega con `CETIL_MULTI_IDENTITY_UNVERIFIED` y revisión obligatoria.
+- Los periodos idénticos entre certificados se consolidan en el más reciente (fecha de expedición
+  y, como desempate, hash del contenido) porque no aportan días nuevos; se informa
+  `CETIL_MULTI_PERIOD_DUPLICATE` con severidad `INFO`.
+- Los periodos con los mismos extremos y valores salariales distintos se conservan todos:
+  `CETIL_MULTI_PERIOD_CONFLICT` con severidad `REVIEW_REQUIRED` y acción para dejar una sola fila.
+- Los periodos parcialmente solapados entre certificados se conservan y se advierten con
+  `CETIL_MULTI_PERIOD_OVERLAP`; el cálculo no puede asumir que los días no se repiten.
+- `merge_resultados()` es la única consolidación: resumen, tabla de revisión, cálculo y exportación
+  consumen el mismo conjunto de filas con `documento_cetil` por fila.
+- El orden de carga no altera el resultado: la consolidación ordena por fechas y hash del documento,
+  y los identificadores de fila CETIL se derivan del contenido de la fila.
 
 ## O. Revisión humana
 

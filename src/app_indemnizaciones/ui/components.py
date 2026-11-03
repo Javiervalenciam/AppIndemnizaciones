@@ -79,7 +79,7 @@ def step_card(
     )
 
 
-def upload_zone(component_id: str, *, hint: str) -> dcc.Upload:
+def upload_zone(component_id: str, *, hint: str, multiple: bool = False) -> dcc.Upload:
     return dcc.Upload(
         id=component_id,
         children=html.Div(
@@ -89,7 +89,7 @@ def upload_zone(component_id: str, *, hint: str) -> dcc.Upload:
             ],
             className="upload-zone__content",
         ),
-        multiple=False,
+        multiple=multiple,
         className="upload-zone",
     )
 

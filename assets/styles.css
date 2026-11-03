@@ -1245,3 +1245,48 @@
   font-size: 11px;
   overflow-wrap: anywhere;
 }
+
+/* Multi-CETIL session */
+
+.cetil-docs {
+  display: grid;
+  gap: 8px;
+}
+
+.cetil-docs__empty {
+  color: var(--color-muted);
+  font-size: 12px;
+  font-weight: 700;
+  margin: 0;
+}
+
+.cetil-docs__item {
+  align-items: center;
+  background: rgba(244, 248, 255, 0.72);
+  border: 1px solid rgba(79, 99, 145, 0.16);
+  border-radius: 12px;
+  display: flex;
+  gap: var(--space-3);
+  justify-content: space-between;
+  padding: 8px 12px;
+}
+
+.cetil-docs__info {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.cetil-docs__label {
+  color: #17336f;
+  font-size: 12px;
+  font-weight: 900;
+  overflow-wrap: anywhere;
+}
+
+.cetil-docs__remove {
+  font-size: 12px;
+  font-weight: 800;
+  padding: 2px 6px;
+  white-space: nowrap;
+}

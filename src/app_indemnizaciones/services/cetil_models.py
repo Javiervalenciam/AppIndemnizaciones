@@ -105,6 +105,14 @@ class ExtractionIssueCode(StrEnum):
     ANNUALIZATION_DATE_LOST = "CETIL_ANNUALIZATION_DATE_LOST"
     YEAR_GAP = "CETIL_YEAR_GAP"
 
+    MULTI_DOCUMENT_ADDED = "CETIL_MULTI_DOCUMENT_ADDED"
+    MULTI_DOCUMENT_DUPLICATE = "CETIL_MULTI_DOCUMENT_DUPLICATE"
+    MULTI_IDENTITY_CONFLICT = "CETIL_MULTI_IDENTITY_CONFLICT"
+    MULTI_IDENTITY_UNVERIFIED = "CETIL_MULTI_IDENTITY_UNVERIFIED"
+    MULTI_PERIOD_DUPLICATE = "CETIL_MULTI_PERIOD_DUPLICATE"
+    MULTI_PERIOD_CONFLICT = "CETIL_MULTI_PERIOD_CONFLICT"
+    MULTI_PERIOD_OVERLAP = "CETIL_MULTI_PERIOD_OVERLAP"
+
 
 @dataclass(frozen=True)
 class ExtractionIssue:
@@ -299,6 +307,9 @@ class PeriodoLiquidableAnual:
     fuente: str = "cetil"
     observaciones: str = "Periodo anualizado desde CETIL. Revisar IBL antes de calcular."
     periodo_origen: str | None = None
+    # Etiqueta legible del CETIL de origen cuando la sesión tiene varios
+    # documentos; permite rastrear cada fila hasta su certificado.
+    documento_cetil: str | None = None
     fuente_pagina: int | None = None
     ibl_metodo: str | None = None
     ibl_evidencia: str | None = None
@@ -600,6 +611,7 @@ def _periodo_liquidable_to_dict(row: PeriodoLiquidableAnual) -> dict[str, Any]:
         "ibl_metodo": row.ibl_metodo,
         "ibl_evidencia": row.ibl_evidencia,
         "ibl_requiere_revision": row.ibl_requiere_revision,
+        "documento_cetil": row.documento_cetil,
     }
 
 
@@ -621,4 +633,5 @@ def _periodo_liquidable_from_dict(data: dict[str, Any]) -> PeriodoLiquidableAnua
         ibl_metodo=data.get("ibl_metodo"),
         ibl_evidencia=data.get("ibl_evidencia"),
         ibl_requiere_revision=bool(data.get("ibl_requiere_revision", False)),
+        documento_cetil=data.get("documento_cetil"),
     )

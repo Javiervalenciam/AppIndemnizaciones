@@ -5,16 +5,27 @@ import binascii
 
 import dash_bootstrap_components as dbc
 import pandas as pd
-from dash import Input, Output, State, ctx, dcc, html, no_update
+from dash import ALL, Input, Output, State, ctx, dcc, html, no_update
 
-from app_indemnizaciones.domain.exceptions import CetilExtractionError, InvalidCetilFileError
+from app_indemnizaciones.domain.exceptions import InvalidCetilFileError
 from app_indemnizaciones.services.cetil_extractor import CetilExtractor
 from app_indemnizaciones.services.cetil_models import (
     CetilExtractionResult,
+    ExtractionIssue,
     IssueSeverity,
     cetil_result_from_dict,
     cetil_result_to_dict,
     highest_issue_severity,
+)
+from app_indemnizaciones.services.cetil_registry import (
+    CetilDocumento,
+    add_documento,
+    content_hash_of_bytes,
+    create_documento,
+    documentos_from_state,
+    documentos_to_state,
+    merge_resultados,
+    remove_documento,
 )
 from app_indemnizaciones.services.excel_exporter import (
     build_ipc_export_info,
@@ -37,10 +48,12 @@ from app_indemnizaciones.services.serialization import (
 from app_indemnizaciones.ui.diagnostics import (
     build_block_alert,
     build_cetil_diagnostics,
-    build_extraction_status_alert,
+    build_cetil_documents_panel,
+    build_documents_status,
     build_pipeline_error_alert,
 )
 from app_indemnizaciones.ui.state import (
+    EMPTY_CETIL_DOCS_STATE,
     EMPTY_CETIL_STATE,
     EMPTY_PERIODOS_STATE,
     EMPTY_RESULTADO_STATE,
@@ -52,6 +65,9 @@ from app_indemnizaciones.ui.tables import (
     build_totales_row,
 )
 from app_indemnizaciones.utils.validators import validate_period_rows
+
+# Límite de archivos por carga: evita un callback gigante y da un error claro.
+MAX_CETIL_UPLOADS = 10
 
 
 def register_callbacks(app) -> None:  # noqa: ANN001
@@ -82,6 +98,8 @@ def register_callbacks(app) -> None:  # noqa: ANN001
         return None, no_update, no_update
 
     @app.callback(
+        Output("cetil-docs-store", "data"),
+        Output("cetil-docs-list", "children"),
         Output("cetil-store", "data"),
         Output("cetil-upload-status", "children"),
         Output("periodos-import-store", "data", allow_duplicate=True),
@@ -95,42 +113,117 @@ def register_callbacks(app) -> None:  # noqa: ANN001
         Output("cetil-apply-status", "children", allow_duplicate=True),
         Input("upload-cetil", "contents"),
         State("upload-cetil", "filename"),
+        State("cetil-docs-store", "data"),
         prevent_initial_call=True,
     )
-    def process_cetil_pdf(contents: str, filename: str | None):
+    def process_cetil_pdfs(contents, filenames, docs_data):
+        documentos = documentos_from_state(docs_data)
+        documentos_iniciales = len(documentos)
+        cargados = 0
+        issues: list[ExtractionIssue] = []
+        errores: list[tuple[str | None, Exception]] = []
+
         try:
-            pdf_bytes = _decode_pdf_upload(contents, filename)
-            result = CetilExtractor().extract_from_bytes(pdf_bytes)
-            return (
-                cetil_result_to_dict(result),
-                build_extraction_status_alert(result, filename),
-                None,
-                list(EMPTY_PERIODOS_STATE),
-                list(EMPTY_PERIODOS_STATE),
-                PERIODOS_STYLE_CONDITIONAL,
-                [],
-                None,
-                EMPTY_RESULTADO_STATE,
-                None,
-                None,
-            )
-        except (CetilExtractionError, InvalidCetilFileError) as exc:
-            return _cetil_reset_outputs(
-                build_pipeline_error_alert(exc, code="CETIL_READ_ERROR")
-            )
-        except ValueError as exc:
-            return _cetil_reset_outputs(
-                build_pipeline_error_alert(exc, code="CETIL_INVALID_DATA")
-            )
-        except Exception as exc:  # noqa: BLE001 - la UI debe reportar todo fallo con código
-            return _cetil_reset_outputs(
-                build_pipeline_error_alert(exc, code="CETIL_UNEXPECTED_ERROR")
+            uploads = _iter_uploads(contents, filenames)
+        except InvalidCetilFileError as exc:
+            return _cetil_outputs(
+                documentos,
+                build_pipeline_error_alert(exc, code="CETIL_READ_ERROR"),
+                invalidate_result=False,
             )
 
+        for payload, filename in uploads:
+            try:
+                pdf_bytes = _decode_pdf_upload(payload, filename)
+                resultado = CetilExtractor().extract_from_bytes(pdf_bytes)
+                documento = create_documento(
+                    resultado,
+                    filename=filename,
+                    content_hash=content_hash_of_bytes(pdf_bytes),
+                )
+                antes = len(documentos)
+                documentos, nuevas = add_documento(documentos, documento)
+                issues.extend(nuevas)
+                if len(documentos) > antes:
+                    cargados += 1
+            except Exception as exc:  # noqa: BLE001 - se reporta por archivo
+                errores.append((filename, exc))
+
+        cambio = len(documentos) != documentos_iniciales
+
+        if errores and cargados == 0:
+            first_filename, first_error = errores[0]
+            alert = build_pipeline_error_alert(
+                first_error,
+                code="CETIL_READ_ERROR",
+            )
+            if first_filename:
+                alert.children.insert(0, html.Div(first_filename, className="diagnostics__detail"))
+            return _cetil_outputs(documentos, alert, invalidate_result=cambio)
+
+        if not cargados and not errores:
+            return _cetil_outputs(
+                documentos,
+                build_documents_status(documentos, issues),
+                invalidate_result=False,
+            )
+
+        status = build_documents_status(documentos, issues)
+        if errores:
+            status.children.append(
+                html.Div(
+                    "Archivos no procesados: "
+                    + ", ".join(name or "sin nombre" for name, _exc in errores)
+                    + ".",
+                    className="diagnostics__note",
+                )
+            )
+        return _cetil_outputs(documentos, status, invalidate_result=cambio)
+
     @app.callback(
+        Output("cetil-docs-store", "data", allow_duplicate=True),
+        Output("cetil-docs-list", "children", allow_duplicate=True),
         Output("cetil-store", "data", allow_duplicate=True),
         Output("cetil-upload-status", "children", allow_duplicate=True),
-        Output("cetil-summary", "children", allow_duplicate=True),
+        Input({"type": "btn-quitar-cetil", "index": ALL}, "n_clicks"),
+        State("cetil-docs-store", "data"),
+        prevent_initial_call=True,
+    )
+    def remove_cetil_document(_clicks: list[int | None], docs_data: list[dict] | None):
+        triggered = ctx.triggered_id
+        if not isinstance(triggered, dict):
+            return no_update, no_update, no_update, no_update
+        # Al renderizar la lista, Dash dispara este callback con clics vacíos:
+        # solo una acción real del usuario debe quitar un certificado.
+        if not any(_clicks or []):
+            return no_update, no_update, no_update, no_update
+
+        documentos = remove_documento(
+            documentos_from_state(docs_data),
+            triggered.get("index"),
+        )
+        merged = merge_resultados(documentos) if documentos else None
+        alert = build_documents_status(
+            documentos,
+            [],
+            note=(
+                "Las filas ya agregadas a la tabla no se modificaron. Use "
+                "«Agregar periodos CETIL a la tabla» para reconstruirlas desde "
+                "los certificados vigentes."
+            ),
+        )
+        return (
+            documentos_to_state(documentos),
+            build_cetil_documents_panel(documentos),
+            cetil_result_to_dict(merged) if merged else None,
+            alert,
+        )
+
+    @app.callback(
+        Output("cetil-docs-store", "data", allow_duplicate=True),
+        Output("cetil-docs-list", "children", allow_duplicate=True),
+        Output("cetil-store", "data", allow_duplicate=True),
+        Output("cetil-upload-status", "children", allow_duplicate=True),
         Output("periodos-import-store", "data", allow_duplicate=True),
         Output("periodos-store", "data", allow_duplicate=True),
         Output("periodos-table", "data", allow_duplicate=True),
@@ -176,7 +269,7 @@ def register_callbacks(app) -> None:  # noqa: ANN001
             return no_update, dbc.Alert("No se detectaron periodos certificados para enviar a la tabla.", color="warning")
 
         return (
-            {"rows": rows, "nonce": n_clicks},
+            {"rows": rows, "nonce": n_clicks, "replace_fuente": "cetil"},
             _build_apply_status(result, len(rows)),
         )
 
@@ -214,6 +307,15 @@ def register_callbacks(app) -> None:  # noqa: ANN001
         elif trigger == "periodos-table":
             rows = table_data or []
         elif trigger == "periodos-import-store" and import_data:
+            reemplazar = (import_data.get("replace_fuente") or "").lower()
+            if reemplazar:
+                # Las filas CETIL se reconstruyen desde los certificados
+                # vigentes; las filas manuales se conservan.
+                rows = [
+                    row
+                    for row in rows
+                    if (row.get("fuente") or "").lower() != reemplazar
+                ]
             rows.extend(import_data.get("rows", []))
 
         serialized = serialize_periods(rows)
@@ -335,26 +437,69 @@ def _remove_selected_rows(
     return [row for index, row in enumerate(rows) if index not in selected_indexes]
 
 
-def _cetil_reset_outputs(alert: object) -> tuple:
-    """Salidas del callback de carga cuando la extracción no produce resultado."""
+def _cetil_outputs(
+    documentos: list[CetilDocumento],
+    alert: object,
+    *,
+    invalidate_result: bool = True,
+) -> tuple:
+    """Salidas del callback de carga de certificados.
+
+    La tabla y la liquidación solo se invalidan cuando el conjunto de
+    certificados cambió; un archivo duplicado o ilegible no debe borrar un
+    cálculo vigente.
+    """
+    merged = merge_resultados(documentos) if documentos else None
+    resultado_store = EMPTY_RESULTADO_STATE if invalidate_result else no_update
+    resultado_vista = None if invalidate_result else no_update
     return (
-        EMPTY_CETIL_STATE,
+        documentos_to_state(documentos),
+        build_cetil_documents_panel(documentos),
+        cetil_result_to_dict(merged) if merged else None,
         alert,
-        None,
-        list(EMPTY_PERIODOS_STATE),
-        list(EMPTY_PERIODOS_STATE),
-        PERIODOS_STYLE_CONDITIONAL,
-        [],
-        None,
-        EMPTY_RESULTADO_STATE,
-        None,
-        None,
+        no_update,
+        no_update,
+        no_update,
+        no_update,
+        no_update,
+        no_update,
+        resultado_store,
+        resultado_vista,
+        no_update,
     )
+
+
+def _iter_uploads(
+    contents: object,
+    filenames: object,
+) -> list[tuple[str | None, str | None]]:
+    """Normaliza la carga de `dcc.Upload` con `multiple=True` o `False`."""
+    if isinstance(contents, (list, tuple)):
+        names = (
+            list(filenames)
+            if isinstance(filenames, (list, tuple))
+            else [filenames] * len(contents)
+        )
+        uploads = list(zip(contents, names, strict=False))
+    else:
+        uploads = [(contents, filenames)]
+    limited = uploads[:MAX_CETIL_UPLOADS]
+    if len(uploads) > MAX_CETIL_UPLOADS:
+        raise InvalidCetilFileError(
+            f"Se cargaron {len(uploads)} archivos CETIL a la vez; el máximo es "
+            f"{MAX_CETIL_UPLOADS}. Cárguelos en varios intentos."
+        )
+    return [(str(payload) if payload is not None else None, _text_or_none(name)) for payload, name in limited]
+
+
+def _text_or_none(value: object) -> str | None:
+    return str(value) if value is not None else None
 
 
 def _build_apply_status(result: CetilExtractionResult, row_count: int) -> dbc.Alert:
     highest = highest_issue_severity(result.issues)
-    color = "warning" if highest in {IssueSeverity.ERROR, IssueSeverity.BLOCK} else "info"
+    requiere_revision = highest is not None and highest.rank >= IssueSeverity.REVIEW_REQUIRED.rank
+    color = "warning" if requiere_revision else "info"
     detail = ""
     if result.issues:
         detail = (
@@ -362,8 +507,9 @@ def _build_apply_status(result: CetilExtractionResult, row_count: int) -> dbc.Al
             "revíselas en el paso 3 antes de calcular."
         )
     return dbc.Alert(
-        f"Se agregaron {row_count} fila(s) anualizada(s) de CETIL a la tabla. "
-        f"Revise IBL y errores antes de calcular.{detail}",
+        f"Se reconstruyeron {row_count} fila(s) anualizada(s) desde los "
+        "certificados CETIL cargados (las filas CETIL previas se reemplazaron; "
+        f"las manuales se conservan). Revise IBL y errores antes de calcular.{detail}",
         color=color,
     )
 
@@ -450,8 +596,9 @@ def _build_ipc_kpi(summary_data: dict) -> html.Div:
 
 def _empty_cetil_ui_outputs() -> tuple:
     return (
+        list(EMPTY_CETIL_DOCS_STATE),
+        build_cetil_documents_panel([]),
         EMPTY_CETIL_STATE,
-        None,
         None,
         None,
         list(EMPTY_PERIODOS_STATE),
@@ -517,7 +664,10 @@ def _build_cetil_summary(result: CetilExtractionResult) -> html.Div:
                     ),
                     html.Div(
                         [
-                            _summary_metric("Número CETIL", metadata.numero_cetil if metadata else "No detectado"),
+                            _summary_metric(
+                                "CETIL principal",
+                                metadata.numero_cetil if metadata else "No detectado",
+                            ),
                             _summary_metric(
                                 "Fecha CETIL",
                                 metadata.fecha_expedicion_cetil.isoformat()

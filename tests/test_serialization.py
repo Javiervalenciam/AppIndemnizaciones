@@ -28,6 +28,7 @@ def _resultado() -> ResultadoLiquidacion:
                 ibc_actualizado=Decimal("13333.33"),
                 ibc_semanal_actualizado=Decimal("3068.66"),
                 anio=1983,
+                documento_cetil="CETIL A-1 · 2024-01-10",
             )
         ],
         total_dias=365,
@@ -52,6 +53,7 @@ def test_serializacion_conserva_fecha_liquidacion_e_ipc_actual():
     assert restored.ipc_actual_fuente == "fecha_liquidacion"
     assert restored.advertencias == ("Advertencia de prueba.",)
     assert restored.periodos[0].dias == 365
+    assert restored.periodos[0].documento_cetil == "CETIL A-1 · 2024-01-10"
 
 
 def test_serializacion_sin_fecha_liquidacion_es_compatible():

@@ -65,11 +65,17 @@ def build_layout() -> html.Div:
                             "Cargar certificado CETIL",
                             [
                                 dcc.Store(id="cetil-store"),
+                                dcc.Store(id="cetil-docs-store", data=[]),
                                 upload_zone(
                                     "upload-cetil",
-                                    hint="Arrastra o selecciona certificado CETIL en PDF",
+                                    hint=(
+                                        "Arrastra o selecciona uno o varios certificados "
+                                        "CETIL en PDF"
+                                    ),
+                                    multiple=True,
                                 ),
                                 html.Div(id="cetil-upload-status", className="mt-3"),
+                                html.Div(id="cetil-docs-list", className="mt-3"),
                                 html.Div(
                                     [
                                         dbc.Button(
@@ -88,7 +94,10 @@ def build_layout() -> html.Div:
                                 ),
                                 html.Div(id="cetil-apply-status", className="mt-3"),
                             ],
-                            subtitle="Extrae datos revisables. No calcula sin validación manual.",
+                            subtitle=(
+                                "Carga uno o varios CETIL del mismo trabajador. "
+                                "Extrae datos revisables y no calcula sin validación manual."
+                            ),
                             status="Manual",
                             status_tone="info",
                         ),

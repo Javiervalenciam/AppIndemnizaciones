@@ -28,6 +28,12 @@ PERIODOS_COLUMNS = [
     {"name": "Cargo", "id": "cargo", "type": "text", "editable": True},
     {"name": "Entidad", "id": "entidad", "type": "text", "editable": True},
     {"name": "Fuente", "id": "fuente", "presentation": "dropdown", "type": "text", "editable": False},
+    {
+        "name": "Documento CETIL",
+        "id": "documento_cetil",
+        "type": "text",
+        "editable": False,
+    },
     {"name": "Observaciones", "id": "observaciones", "type": "text", "editable": False},
     {"name": "Estado", "id": "estado_validacion", "type": "text", "editable": False},
     {"name": "Errores / advertencias", "id": "errores", "type": "text", "editable": False},

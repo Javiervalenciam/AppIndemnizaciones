@@ -91,9 +91,11 @@ La llamada productiva está en `ui/callbacks.py:229-280`. Construye el repositor
 `dcc.Store`, convierte las filas validadas a `PeriodoLaborado` y llama
 `LiquidacionService(repo).calcular(periodos)` sin `fecha_liquidacion` ni `day_count`.
 
-La carga de un nuevo CETIL reemplaza `cetil-store` y limpia periodos y resultado
-(`ui/callbacks.py:75-121`). Por ello la UI actual representa un solo CETIL activo, aunque un documento
-pueda contener varios periodos.
+La carga de certificados mantiene una sesión multi-CETIL: `cetil-docs-store` conserva los documentos
+cargados y `cetil-store` expone su consolidación para resumen, tabla y exportación
+(`services/cetil_registry.py`). Un documento duplicado no se agrega; uno de otra persona se rechaza;
+los periodos idénticos se consolidan en el certificado más reciente y los contradictorios o solapados
+se conservan con revisión obligatoria.
 
 ### A.3 Fórmulas observadas
 
@@ -491,7 +493,7 @@ Cuando no exista evidencia o regla externa aprobada, el valor debe ser `DESCONOC
 | AFP | `fondo_aporte` puede extraerse en tabla, pero no llega a UI/motor. | Administradora normalizada con nombre fuente, ID de catálogo, vigencia y evidencia. | Que cualquier texto de fondo sea AFP vigente o única. |
 | Fecha de traslado | Ausente. | `transfer_date: date`, régimen/administradora origen y destino, fuente y revisión. | Derivarla de fecha de expedición, vigencia o primer aporte. |
 | Entidad responsable | Existe parcialmente por periodo y como entidad empleadora, pero se reduce a una cadena `entidad`; no se conserva el rol. | Entidades separadas por rol: empleadora, certificadora, administradora, responsable declarada y responsable decidida. | Igualar esos roles. |
-| Múltiples CETIL | El modelo de resultado puede representar un documento; la UI mantiene un solo `cetil-store` y lo reemplaza. | Colección de `CetilDocument`, unión por persona revisada, reglas de deduplicación/conflicto y procedencia por campo. | Que documentos con datos parecidos correspondan a la misma persona sin revisión. |
+| Múltiples CETIL | La sesión conserva N documentos en `cetil-docs-store` y consolida `cetil-store`; no hay versionado, auditoría append-only ni identidad revisada por campo. | Colección de `CetilDocument` versionada, unión por persona revisada, reglas de deduplicación/conflicto y procedencia por campo. | Que documentos con datos parecidos correspondan a la misma persona sin revisión. |
 | Múltiples vinculaciones | Hay varios periodos, pero no una entidad `linkage` estable; una entidad empleadora global puede coexistir con responsables por fila. | `linkage_key`, entidad/rol por vinculación, rangos, interrupciones, solapamientos, fuente y resolución de conflictos. | Consolidar periodos por cercanía o entidad sin regla. |
 
 ---

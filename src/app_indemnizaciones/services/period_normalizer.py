@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import re
 import uuid
 from collections.abc import Callable
@@ -29,6 +30,7 @@ PERIODO_COLUMNS = (
     "cargo",
     "entidad",
     "fuente",
+    "documento_cetil",
     "observaciones",
     "estado_validacion",
     "errores",
@@ -50,6 +52,7 @@ def new_period_row() -> dict[str, str]:
         "cargo": "",
         "entidad": "",
         "fuente": "manual",
+        "documento_cetil": "",
         "observaciones": "",
         "estado_validacion": "",
         "errores": "",
@@ -129,6 +132,7 @@ def period_row_to_model(row: dict[str, Any]) -> PeriodoLaborado:
         cargo=normalized["cargo"] or None,
         entidad=normalized["entidad"] or None,
         fuente=normalized["fuente"] or None,
+        documento_cetil=normalized["documento_cetil"] or None,
     )
 
 
@@ -269,10 +273,31 @@ def periodo_liquidable_to_ui_row(periodo: PeriodoLiquidableAnual) -> dict[str, s
             "cargo": periodo.cargo or "",
             "entidad": periodo.entidad or "",
             "fuente": periodo.fuente,
+            "documento_cetil": periodo.documento_cetil or "",
             "observaciones": _annual_row_observaciones(periodo),
         }
     )
+    # El id se deriva del contenido y la procedencia: reconstruir las filas
+    # desde los mismos CETIL produce exactamente las mismas filas, sin
+    # depender del orden de carga ni de identificadores aleatorios.
+    row["id"] = _stable_row_id(periodo)
     return normalize_period_row(row)
+
+
+def _stable_row_id(periodo: PeriodoLiquidableAnual) -> str:
+    ibl = _decimal_to_store(periodo.ibl_reportado) if periodo.ibl_reportado is not None else ""
+    payload = "|".join(
+        [
+            periodo.fuente,
+            periodo.documento_cetil or "",
+            periodo.fecha_inicio.isoformat(),
+            periodo.fecha_fin.isoformat(),
+            ibl,
+            (periodo.cargo or "").strip().lower(),
+            (periodo.entidad or "").strip().lower(),
+        ]
+    )
+    return hashlib.sha1(payload.encode("utf-8")).hexdigest()[:8]
 
 
 def _annual_row_observaciones(periodo: PeriodoLiquidableAnual) -> str:

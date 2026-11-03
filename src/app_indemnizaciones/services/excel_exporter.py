@@ -324,8 +324,9 @@ def _write_traceability_sheet(
     worksheet.set_column("Q:Q", 42)
     worksheet.set_column("R:T", 24)
     worksheet.set_column("U:U", 30)
+    worksheet.set_column("V:V", 32)
 
-    worksheet.merge_range("A1:U1", "TRAZABILIDAD DE LA LIQUIDACIÓN", formats["title"])
+    worksheet.merge_range("A1:V1", "TRAZABILIDAD DE LA LIQUIDACIÓN", formats["title"])
     worksheet.write(1, 0, "Fecha de liquidación", formats["label"])
     if resultado.fecha_liquidacion:
         worksheet.write_datetime(1, 1, resultado.fecha_liquidacion, formats["date"])
@@ -376,6 +377,7 @@ def _write_traceability_sheet(
         "Página CETIL",
         "Cargo",
         "Entidad",
+        "Documento CETIL",
     ]
     header_row = 5
     for col_num, value in enumerate(headers):
@@ -422,6 +424,12 @@ def _write_traceability_sheet(
         worksheet.write(excel_row, 19, row.cargo or _annual_value(annual, "cargo"), formats["cell"])
         worksheet.write(
             excel_row, 20, row.entidad or _annual_value(annual, "entidad"), formats["cell"]
+        )
+        worksheet.write(
+            excel_row,
+            21,
+            row.documento_cetil or _annual_value(annual, "documento_cetil") or "",
+            formats["cell"],
         )
 
     worksheet.freeze_panes(header_row + 1, 0)

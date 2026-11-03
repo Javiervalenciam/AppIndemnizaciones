@@ -24,7 +24,9 @@ from app_indemnizaciones.services.cetil_models import (
     ExtractionIssue,
     IssueSeverity,
     count_issues_by_severity,
+    highest_issue_severity,
 )
+from app_indemnizaciones.services.cetil_registry import CetilDocumento
 
 _SEVERITY_CLASS = {
     IssueSeverity.INFO: "diagnostic-badge--info",
@@ -116,6 +118,102 @@ def build_pipeline_error_alert(
         color="danger",
         className="mb-0",
     )
+
+
+def build_cetil_documents_panel(documentos: list[CetilDocumento]) -> html.Div:
+    """Lista los certificados cargados con su procedencia y acción de quitar."""
+    if not documentos:
+        return html.Div(
+            "Aún no hay certificados cargados.",
+            className="cetil-docs__empty",
+        )
+    items = []
+    for documento in documentos:
+        items.append(
+            html.Div(
+                [
+                    html.Div(
+                        [
+                            html.Span(documento.etiqueta, className="cetil-docs__label"),
+                            html.Span(
+                                f"{documento.periodos_anuales} fila(s) anual(es) · "
+                                f"{len(documento.resultado.issues)} incidencia(s)",
+                                className="diagnostics__note",
+                            ),
+                        ],
+                        className="cetil-docs__info",
+                    ),
+                    dbc.Button(
+                        "Quitar",
+                        id={"type": "btn-quitar-cetil", "index": documento.documento_id},
+                        color="link",
+                        size="sm",
+                        className="cetil-docs__remove",
+                    ),
+                ],
+                className="cetil-docs__item",
+            )
+        )
+    return html.Div(
+        [
+            html.H5(
+                f"Certificados cargados ({len(documentos)})",
+                className="diagnostics__section-title",
+            ),
+            *items,
+        ],
+        className="cetil-docs",
+    )
+
+
+def build_documents_status(
+    documentos: list[CetilDocumento],
+    issues: list[ExtractionIssue] | tuple[ExtractionIssue, ...],
+    *,
+    note: str | None = None,
+) -> dbc.Alert:
+    """Resume el resultado de cargar o quitar certificados en la sesión."""
+    highest = highest_issue_severity(list(issues))
+    if highest in {IssueSeverity.BLOCK, IssueSeverity.ERROR}:
+        color = "danger"
+    elif highest is IssueSeverity.REVIEW_REQUIRED:
+        color = "warning"
+    else:
+        color = "info"
+
+    children: list[object] = [
+        html.Strong(
+            f"Sesión CETIL: {len(documentos)} certificado(s) cargado(s)."
+        )
+    ]
+    if not documentos:
+        children.append(
+            html.Div(
+                "No quedan certificados. Cargue al menos uno para calcular.",
+                className="diagnostics__note",
+            )
+        )
+    attention = [
+        issue for issue in issues if issue.severity.rank >= IssueSeverity.WARNING.rank
+    ]
+    if attention:
+        children.append(
+            html.Ul(
+                [
+                    html.Li(
+                        [
+                            html.Span(issue.code.value, className="diagnostic-code"),
+                            html.Span(f" — {issue.message}"),
+                        ]
+                    )
+                    for issue in attention
+                ],
+                className="mb-0",
+            )
+        )
+    if note:
+        children.append(html.Div(note, className="diagnostics__note"))
+    return dbc.Alert(children, color=color, className="mb-0")
 
 
 def build_cetil_diagnostics(result: CetilExtractionResult) -> html.Div:

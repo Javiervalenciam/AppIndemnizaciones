@@ -21,6 +21,9 @@ class PeriodoLaborado:
     cargo: str | None = None
     entidad: str | None = None
     fuente: str | None = None
+    # Etiqueta del CETIL del que proviene la fila, para trazabilidad por fila
+    # cuando la sesión tiene varios certificados.
+    documento_cetil: str | None = None
 
 
 @dataclass(frozen=True)
@@ -57,6 +60,7 @@ class ResultadoPeriodo:
     advertencias_ipc: tuple[str, ...] = ()
     cargo: str | None = None
     entidad: str | None = None
+    documento_cetil: str | None = None
 
 
 @dataclass(frozen=True)

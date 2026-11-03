@@ -39,6 +39,7 @@ def _periodo_to_dict(row: ResultadoPeriodo) -> dict[str, Any]:
         "ibc_semanal_actualizado": str(row.ibc_semanal_actualizado),
         "cargo": row.cargo,
         "entidad": row.entidad,
+        "documento_cetil": row.documento_cetil,
     }
 
 
@@ -61,6 +62,7 @@ def _periodo_from_dict(data: dict[str, Any]) -> ResultadoPeriodo:
         ibc_semanal_actualizado=Decimal(data["ibc_semanal_actualizado"]),
         cargo=data.get("cargo"),
         entidad=data.get("entidad"),
+        documento_cetil=data.get("documento_cetil"),
     )
 
 

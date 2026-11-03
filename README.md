@@ -28,12 +28,12 @@ La interfaz está diseñada como una aplicación administrativa moderna con esti
 | Módulo | Descripción |
 | --- | --- |
 | **Carga IPC** | Lee archivos Excel/CSV con índices IPC históricos, detecta rango de datos e identifica el IPC actual/final. |
-| **Carga CETIL** | Procesa PDF CETIL, extrae datos del empleado, certificado, entidad empleadora, periodos y factores salariales. |
+| **Carga CETIL** | Procesa uno o varios PDF CETIL del mismo trabajador, extrae datos del empleado, certificados, entidad empleadora, periodos y factores salariales, y consolida los documentos con trazabilidad. |
 | **Normalización anual** | Convierte periodos certificados en filas por año calendario, respetando fechas reales de inicio y fin. |
 | **Revisión manual** | Permite revisar y ajustar fechas, IBL reportado, cargo y entidad antes de calcular. |
 | **Motor de cálculo** | Calcula días, semanas, IPC inicial anual, IPC actual, indexación e IBC semanal actualizado. |
 | **KPIs de liquidación** | Muestra DÍAS EN TOTAL, SC, PPC, SBC y LIQUIDACIÓN DE APORTES. |
-| **Exportación Excel** | Genera archivo `.xlsx` con tabla, KPIs, datos CETIL, datos IPC y fórmulas compatibles con Excel. |
+| **Exportación Excel** | Genera archivo `.xlsx` con los valores calculados por el backend, datos CETIL, datos IPC y hoja de trazabilidad por fila. |
 
 ---
 
@@ -94,7 +94,9 @@ La app está organizada en secciones claras:
    - IPC actual/final detectado.
 
 2. **Certificado CETIL**
-   - Carga del PDF.
+   - Carga de uno o varios PDF del mismo trabajador.
+   - Lista de certificados cargados con opción de quitar.
+   - Detección de duplicados, identidad distinta y periodos contradictorios.
    - Limpieza de sesión CETIL.
    - Extracción de periodos y factores salariales.
 
@@ -114,6 +116,7 @@ La app está organizada en secciones claras:
    - IBL reportado.
    - Cargo.
    - Entidad.
+   - Documento CETIL de origen.
    - Estado.
    - Errores / advertencias.
 
@@ -235,11 +238,12 @@ Estado esperado:
 
 El Excel generado incluye:
 
-- Datos del trabajador y certificado CETIL.
+- Datos del trabajador y de los certificados CETIL.
 - Datos de entidad empleadora.
 - Datos IPC usados.
 - Tabla anualizada de liquidación.
-- Fórmulas reales en celdas calculadas.
+- Valores calculados por el backend, sin fórmulas de recálculo.
+- Hoja de trazabilidad por fila, incluido el documento CETIL de origen.
 - KPIs finales.
 - Nombre de archivo con documento del trabajador cuando está disponible.
 
@@ -258,6 +262,7 @@ Liquidacion_ISV_88152324.xlsx
 - Cálculos fuera de callbacks Dash.
 - Extracción documental aislada en servicios.
 - Datos CETIL sujetos a revisión manual.
+- Varios CETIL por persona con consolidación determinista y procedencia por fila.
 - Validaciones antes del cálculo.
 - Trazabilidad por fila.
 - Tests unitarios para IPC, CETIL, normalización, cálculo, UI y exportación.

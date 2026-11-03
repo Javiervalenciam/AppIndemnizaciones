@@ -148,4 +148,5 @@ class LiquidacionService:
             advertencias_ipc=tuple(ipc_inicial_info.warnings),
             cargo=periodo.cargo,
             entidad=periodo.entidad,
+            documento_cetil=periodo.documento_cetil,
         )

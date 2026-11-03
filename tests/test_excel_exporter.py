@@ -130,7 +130,7 @@ def test_exportador_incluye_hoja_de_trazabilidad():
     ws = workbook["Trazabilidad"]
 
     assert ws["A1"].value == "TRAZABILIDAD DE LA LIQUIDACIÓN"
-    headers = [ws.cell(row=6, column=column).value for column in range(1, 22)]
+    headers = [ws.cell(row=6, column=column).value for column in range(1, 23)]
     assert headers[:6] == [
         "Año",
         "Fecha inicio",
@@ -139,9 +139,41 @@ def test_exportador_incluye_hoja_de_trazabilidad():
         "Semanas",
         "IBL reportado",
     ]
+    assert headers[-1] == "Documento CETIL"
     assert ws["A7"].value == 1983
     assert ws["D7"].value == 94
     assert ws["J7"].value == 15
+
+
+def test_exportador_trazabilidad_conserva_el_documento_cetil_de_la_fila():
+    repo = IpcRepository.from_dataframe(
+        pd.DataFrame(
+            {
+                "Fecha": ["1983/01/31", "1983/02/28", "2026/02/28"],
+                "Índice de Precios al Consumidor (IPC)": [10, 20, 100],
+            }
+        )
+    )
+    resultado = LiquidacionService(repo).calcular(
+        [
+            PeriodoLaborado(
+                date(1983, 9, 29),
+                date(1983, 12, 31),
+                Decimal("14000"),
+                anio=1983,
+                documento_cetil="CETIL A-1 · 2024-01-10",
+            )
+        ]
+    )
+
+    workbook = load_workbook(
+        BytesIO(build_liquidacion_xlsx(resultado)),
+        data_only=True,
+    )
+    ws = workbook["Trazabilidad"]
+
+    assert ws["V6"].value == "Documento CETIL"
+    assert ws["V7"].value == "CETIL A-1 · 2024-01-10"
 
 
 def _money(value: Decimal) -> float:
