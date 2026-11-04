@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="44" height="44" viewBox="0 0 44 44" role="img" aria-label="X">
+  <defs>
+    <linearGradient id="tile" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#23262B"/>
+      <stop offset="1" stop-color="#000000"/>
+    </linearGradient>
+    <linearGradient id="sheen" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.15"/>
+      <stop offset="0.55" stop-color="#FFFFFF" stop-opacity="0"/>
+    </linearGradient>
+    <clipPath id="clip"><rect width="44" height="44" rx="12"/></clipPath>
+  </defs>
+  <rect width="44" height="44" rx="12" fill="url(#tile)"/>
+  <rect width="44" height="44" fill="url(#sheen)" clip-path="url(#clip)"/>
+  <path transform="translate(12.6 12.6) scale(0.7833)" fill="#FFFFFF" d="M14.234 10.162 22.977 0h-2.072l-7.591 8.824L7.251 0H.258l9.168 13.343L.258 24H2.33l8.016-9.318L16.749 24h6.993zm-2.837 3.299-.929-1.329L3.076 1.56h3.182l5.965 8.532.929 1.329 7.754 11.09h-3.182z"/>
+  <rect x="0.5" y="0.5" width="43" height="43" rx="11.5" fill="none" stroke="#FFFFFF" stroke-opacity="0.16"/>
+</svg>
