@@ -46,7 +46,7 @@ class ReportLayout:
     spacer_row: int = 2
     data_section_row: int = 3
     first_field_row: int = 4
-    field_count: int = 5
+    field_count: int = 6
     kpi_section_row: int = 10
     kpi_label_row: int = 11
     kpi_value_row: int = 12

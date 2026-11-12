@@ -125,7 +125,7 @@ def build_field_diagnostics(result: CetilExtractionResult) -> list[FieldDiagnost
             **_status(trabajador.genero if trabajador else None),
             value=trabajador.genero if trabajador and trabajador.genero else "",
             page=employee_page,
-            note="Opcional para el cálculo; se reporta para el expediente.",
+            note=_genero_note(trabajador),
         ),
         FieldDiagnostic(
             field="entidad_empleadora.nombre",
@@ -283,6 +283,15 @@ def build_extraction_summary(result: CetilExtractionResult) -> ExtractionSummary
         status_title=title,
         status_message=message,
     )
+
+
+def _genero_note(trabajador: object) -> str:
+    """Nota informativa del género; nunca es una alarma (no afecta el cálculo)."""
+    if trabajador is None or not getattr(trabajador, "genero", None):
+        return "No consta en el CETIL ni en la base de nombres; opcional, no afecta el cálculo."
+    if getattr(trabajador, "genero_origen", None) == "base_nombres":
+        return "Inferido por el nombre (base de nombres); verifique. No afecta el cálculo."
+    return "Opcional para el cálculo; se reporta para el expediente."
 
 
 def _status(value: object) -> dict[str, str]:

@@ -26,6 +26,7 @@ from app_indemnizaciones.services.cetil_models import (
     ExtractionIssueLog,
     IssueSeverity,
 )
+from app_indemnizaciones.services.gender_resolver import resolve_genero
 from app_indemnizaciones.services.cetil_ocr import (
     OCR_FAILED,
     OCR_NO_TEXT,
@@ -451,15 +452,6 @@ class CetilExtractor:
             or _extract_labeled_text(search_text, "GENERO", _PERSON_LABELS)
             or _extract_labeled_text(search_text, "SEXO", _PERSON_LABELS)
         )
-        if not genero:
-            log.add(
-                code=ExtractionIssueCode.WORKER_GENDER_MISSING,
-                severity=IssueSeverity.WARNING,
-                message="No se detectó campo explícito de género en el CETIL.",
-                field="trabajador.genero",
-                action="Confirme el género manualmente si el cálculo lo requiere.",
-            )
-
         primer_apellido = clean_person_name_part(
             _extract_labeled_text(search_text, "Primer Apellido", _PERSON_LABELS)
         )
@@ -478,6 +470,24 @@ class CetilExtractor:
             primer_apellido,
             segundo_apellido,
         ) or clean_cetil_value(_extract_labeled_text(search_text, "Nombre Completo", _PERSON_LABELS))
+
+        genero_origen: str | None = "cetil" if genero else None
+        if not genero:
+            resolucion = resolve_genero(nombre_completo)
+            if resolucion is not None:
+                genero = resolucion.valor
+                genero_origen = resolucion.origen
+            else:
+                log.add(
+                    code=ExtractionIssueCode.WORKER_GENDER_MISSING,
+                    severity=IssueSeverity.INFO,
+                    message=(
+                        "El género no consta en el CETIL ni en la base de nombres; "
+                        "selecciónelo manualmente (no afecta el cálculo)."
+                    ),
+                    field="trabajador.genero",
+                    action="Seleccione el género manualmente si desea registrarlo.",
+                )
 
         if not any([documento, nombre_completo, fecha_nacimiento]):
             log.add(
@@ -500,6 +510,7 @@ class CetilExtractor:
             nombre_completo=nombre_completo,
             fecha_nacimiento=fecha_nacimiento,
             genero=genero,
+            genero_origen=genero_origen,
         )
 
     def _extract_entidad_empleadora(

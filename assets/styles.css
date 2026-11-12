@@ -1045,11 +1045,11 @@
 .cetil-diagnostics {
   background: rgba(255, 255, 255, 0.86);
   border: 1px solid rgba(79, 99, 145, 0.18);
-  border-radius: 18px;
+  border-radius: 14px;
   display: grid;
-  gap: var(--space-3);
-  margin-top: var(--space-4);
-  padding: var(--space-4);
+  gap: 8px;
+  margin-top: var(--space-3);
+  padding: 12px 14px;
 }
 
 .diagnostics__header {
@@ -1154,14 +1154,13 @@
 .diagnostics__table {
   border-collapse: collapse;
   font-size: 12px;
-  min-width: 640px;
   width: 100%;
 }
 
 .diagnostics__table th,
 .diagnostics__table td {
   border-bottom: 1px solid rgba(79, 99, 145, 0.14);
-  padding: 8px 10px;
+  padding: 4px 8px;
   text-align: left;
   vertical-align: top;
 }
@@ -1174,8 +1173,84 @@
   text-transform: uppercase;
 }
 
-.diagnostics__table--issues td:last-child {
-  min-width: 180px;
+.diagnostics__chips {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.diagnostics__details > summary {
+  color: #34466b;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 800;
+  padding: 2px 0;
+}
+
+.diagnostics__details > summary:focus-visible,
+.diagnostics__issue-detail > summary:focus-visible {
+  outline: 2px solid #34466b;
+  outline-offset: 2px;
+}
+
+.diagnostics__details[open] > summary {
+  margin-bottom: 6px;
+}
+
+.diagnostics__issues {
+  display: grid;
+  gap: 6px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.diagnostics__issue {
+  background: rgba(244, 248, 255, 0.72);
+  border: 1px solid rgba(79, 99, 145, 0.16);
+  border-radius: 8px;
+  font-size: 12px;
+  padding: 6px 10px;
+}
+
+.diagnostics__issue-head {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+  min-width: 0;
+}
+
+.diagnostics__issue-msg {
+  flex: 1 1 auto;
+  font-weight: 700;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.diagnostics__issue-loc {
+  flex: none;
+}
+
+.diagnostics__issue-action {
+  color: #34466b;
+  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.diagnostics__issue-detail > summary {
+  color: var(--color-muted);
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.diagnostics__cell-value {
+  overflow-wrap: anywhere;
 }
 
 .diagnostics__empty {
@@ -1184,7 +1259,7 @@
   color: #14653f;
   font-size: 12px;
   font-weight: 700;
-  padding: 10px 12px;
+  padding: 6px 10px;
 }
 
 .diagnostic-status,
@@ -1194,7 +1269,7 @@
   font-size: 10px;
   font-weight: 900;
   letter-spacing: 0.04em;
-  padding: 3px 9px;
+  padding: 2px 8px;
   white-space: nowrap;
 }
 

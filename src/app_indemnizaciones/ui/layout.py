@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import date
+
 import dash_bootstrap_components as dbc
 from dash import dcc, html
 
@@ -112,6 +114,32 @@ def build_layout() -> html.Div:
                 "Datos extraídos del CETIL",
                 [
                     html.Div(id="cetil-summary", className="mt-3"),
+                    html.Div(
+                        [
+                            html.Label(
+                                "Género del trabajador",
+                                htmlFor="genero-manual",
+                                className="periodos-help",
+                            ),
+                            dcc.Dropdown(
+                                id="genero-manual",
+                                options=[
+                                    {"label": "Hombre", "value": "Hombre"},
+                                    {"label": "Mujer", "value": "Mujer"},
+                                ],
+                                placeholder="Seleccionar (opcional)",
+                                clearable=True,
+                                searchable=False,
+                            ),
+                            html.P(
+                                "Se completa solo si el nombre está en la base de nombres; "
+                                "si no, selecciónelo. No afecta el cálculo.",
+                                className="periodos-help",
+                                id="genero-ayuda",
+                            ),
+                        ],
+                        className="genero-field",
+                    ),
                 ],
                 subtitle="Información detectada en encabezado, empleado y entidad empleadora.",
                 extra_class="mt-3",
@@ -130,20 +158,22 @@ def build_layout() -> html.Div:
                         html.Div(
                             [
                                 html.Label(
-                                    "Fecha de liquidación (opcional)",
+                                    "Fecha de liquidación",
                                     htmlFor="fecha-liquidacion",
                                     className="periodos-help",
                                 ),
                                 dcc.DatePickerSingle(
                                     id="fecha-liquidacion",
+                                    date=date.today().isoformat(),
                                     placeholder="AAAA-MM-DD",
                                     display_format="YYYY-MM-DD",
                                     first_day_of_week=1,
                                     className="fecha-liquidacion",
                                 ),
                                 html.P(
-                                    "Si se omite, se usa el IPC más reciente disponible y se "
-                                    "advierte en el resultado.",
+                                    "Por defecto es hoy. Si el IPC de ese mes aún no está "
+                                    "publicado, se usa el último disponible y se advierte "
+                                    "en el resultado.",
                                     className="periodos-help",
                                 ),
                             ],

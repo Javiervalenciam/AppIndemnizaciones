@@ -131,17 +131,21 @@ def build_liquidacion_filename(cetil_result: CetilExtractionResult | None = None
 def build_ipc_export_info(
     repo: IpcRepository,
     fecha_liquidacion: date | None = None,
+    periodo_ipc_actual: str | None = None,
 ) -> IpcExportInfo:
     """Resume el IPC para el libro exportado.
 
-    Si se indica fecha de liquidación, se usa el registro IPC de ese periodo;
-    de lo contrario, el último registro disponible (mismo criterio del motor).
+    Prioridad: el periodo IPC realmente usado por el motor (`periodo_ipc_actual`,
+    que puede ser el último disponible si el del mes de liquidación aún no se
+    publica), luego el registro de la fecha de liquidación y, por último, el
+    último registro disponible.
     """
-    current = (
-        repo.obtener_por_fecha(fecha_liquidacion)
-        if fecha_liquidacion is not None
-        else repo.get_current_ipc()
-    )
+    if periodo_ipc_actual:
+        current = repo.obtener_por_periodo(periodo_ipc_actual)
+    elif fecha_liquidacion is not None:
+        current = repo.obtener_por_fecha(fecha_liquidacion)
+    else:
+        current = repo.get_current_ipc()
     return IpcExportInfo(
         ipc_actual=current.indice,
         fecha_ipc_actual=current.fecha,
@@ -344,6 +348,7 @@ def _write_metadata(
             trabajador.fecha_nacimiento if trabajador else None,
             "date",
         ),
+        ("Género", trabajador.genero if trabajador else None, "text"),
         (
             "Entidad empleadora",
             entidad.nombre_entidad_empleadora if entidad else None,
@@ -749,6 +754,7 @@ def _notes_text(
 _IPC_SOURCE_LABELS = {
     "fecha_liquidacion": "fecha de liquidación",
     "ultimo_registro": "último registro disponible",
+    "ultimo_disponible": "último IPC disponible (mes de liquidación sin publicar)",
 }
 
 

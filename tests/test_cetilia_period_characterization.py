@@ -77,7 +77,7 @@ def _factor(anio: int, ibl: str) -> CetilFactorSalarial:
     )
 
 
-def test_current_behavior_duplicate_periods_warn_but_both_are_calculated() -> None:
+def test_duplicate_periods_are_blocked_before_calculation() -> None:
     rows = validate_period_rows(
         [
             _ui_row("a", "1984-01-01", "1984-12-31"),
@@ -85,19 +85,13 @@ def test_current_behavior_duplicate_periods_warn_but_both_are_calculated() -> No
         ]
     )
 
-    assert [row["estado_validacion"] for row in rows] == [
-        "ADVERTENCIA",
-        "ADVERTENCIA",
-    ], CURRENT_BEHAVIOR
-    assert all("posible duplicado" in row["errores"] for row in rows), CURRENT_BEHAVIOR
-
-    result = LiquidacionService(_ipc_repo()).calcular(rows_to_periodos_laborados(rows))
-    assert len(result.periodos) == 2, CURRENT_BEHAVIOR
-    assert result.total_dias == 732, CURRENT_BEHAVIOR
-    assert result.sc == Decimal(732) / Decimal(7), CURRENT_BEHAVIOR
+    # Un duplicado exacto también se solapa: duplicaría días y semanas.
+    assert [row["estado_validacion"] for row in rows] == ["ERROR", "ERROR"]
+    assert all("posible duplicado" in row["errores"] for row in rows)
+    assert all("solapamiento" in row["errores"] for row in rows)
 
 
-def test_current_behavior_overlapping_periods_warn_but_days_are_summed() -> None:
+def test_overlapping_periods_are_blocked_before_calculation() -> None:
     rows = validate_period_rows(
         [
             _ui_row("a", "1984-01-01", "1984-06-30"),
@@ -105,12 +99,8 @@ def test_current_behavior_overlapping_periods_warn_but_days_are_summed() -> None
         ]
     )
 
-    assert all(row["estado_validacion"] == "ADVERTENCIA" for row in rows), CURRENT_BEHAVIOR
-    assert all("posible solapamiento" in row["errores"] for row in rows), CURRENT_BEHAVIOR
-
-    result = LiquidacionService(_ipc_repo()).calcular(rows_to_periodos_laborados(rows))
-    assert [row.dias for row in result.periodos] == [182, 214], CURRENT_BEHAVIOR
-    assert result.total_dias == 396, CURRENT_BEHAVIOR
+    assert all(row["estado_validacion"] == "ERROR" for row in rows)
+    assert all("solapamiento" in row["errores"] for row in rows)
 
 
 def test_current_behavior_contiguous_cetil_periods_are_consolidated() -> None:

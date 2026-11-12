@@ -249,6 +249,44 @@ def register_callbacks(app) -> None:  # noqa: ANN001
         return _build_cetil_summary(cetil_result_from_dict(cetil_data))
 
     @app.callback(
+        Output("genero-manual", "value"),
+        Output("genero-ayuda", "children"),
+        Input("cetil-store", "data"),
+    )
+    def sync_genero_selector(cetil_data: dict | None):
+        base = (
+            "Se completa solo si el nombre está en la base de nombres; "
+            "si no, selecciónelo. No afecta el cálculo."
+        )
+        trabajador = (cetil_data or {}).get("trabajador") or {}
+        genero = trabajador.get("genero")
+        origen = trabajador.get("genero_origen")
+        if not genero:
+            return None, base
+        etiquetas = {
+            "base_nombres": "Inferido de la base de nombres; puede cambiarlo.",
+            "manual": "Seleccionado manualmente.",
+            "cetil": "Tomado del CETIL.",
+        }
+        return genero, etiquetas.get(origen, base)
+
+    @app.callback(
+        Output("cetil-store", "data", allow_duplicate=True),
+        Input("genero-manual", "value"),
+        State("cetil-store", "data"),
+        prevent_initial_call=True,
+    )
+    def set_genero_manual(genero: str | None, cetil_data: dict | None):
+        if not cetil_data or not cetil_data.get("trabajador"):
+            return no_update
+        trabajador = dict(cetil_data["trabajador"])
+        if (trabajador.get("genero") or None) == (genero or None):
+            return no_update  # evita el ciclo con sync_genero_selector
+        trabajador["genero"] = genero or None
+        trabajador["genero_origen"] = "manual" if genero else None
+        return {**cetil_data, "trabajador": trabajador}
+
+    @app.callback(
         Output("periodos-import-store", "data"),
         Output("cetil-apply-status", "children"),
         Input("btn-use-cetil-data", "n_clicks"),
@@ -407,7 +445,9 @@ def register_callbacks(app) -> None:  # noqa: ANN001
         prevent_initial_call=True,
     )
     def descargar_excel(n_clicks, resultado_data, ipc_data, cetil_data):
-        if not resultado_data:
+        # El botón se crea dinámicamente al calcular: Dash dispara el callback con
+        # n_clicks=None al insertarlo. Solo un clic real debe descargar.
+        if not n_clicks or not resultado_data:
             return no_update
         resultado = resultado_from_dict(resultado_data)
         repo = IpcRepository.from_dataframe(pd.DataFrame(ipc_data)) if ipc_data else None
@@ -416,7 +456,11 @@ def register_callbacks(app) -> None:  # noqa: ANN001
             resultado,
             cetil_result=cetil_result,
             ipc_info=(
-                build_ipc_export_info(repo, fecha_liquidacion=resultado.fecha_liquidacion)
+                build_ipc_export_info(
+                    repo,
+                    fecha_liquidacion=resultado.fecha_liquidacion,
+                    periodo_ipc_actual=resultado.ipc_actual_periodo,
+                )
                 if repo
                 else None
             ),

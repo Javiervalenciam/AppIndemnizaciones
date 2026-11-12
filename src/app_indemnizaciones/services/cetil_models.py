@@ -241,6 +241,7 @@ class CetilTrabajador:
     nombre_completo: str | None = None
     fecha_nacimiento: date | None = None
     genero: str | None = None
+    genero_origen: str | None = None  # None/'cetil' = viene del PDF; 'base_nombres' = inferido
 
 
 @dataclass(frozen=True)
@@ -462,6 +463,7 @@ def _trabajador_to_dict(row: CetilTrabajador | None) -> dict[str, Any] | None:
         "nombre_completo": row.nombre_completo,
         "fecha_nacimiento": _date_to_str(row.fecha_nacimiento),
         "genero": row.genero,
+        "genero_origen": row.genero_origen,
     }
 
 
@@ -478,6 +480,7 @@ def _trabajador_from_dict(data: dict[str, Any] | None) -> CetilTrabajador | None
         nombre_completo=data.get("nombre_completo"),
         fecha_nacimiento=_date_from_str(data.get("fecha_nacimiento")),
         genero=data.get("genero"),
+        genero_origen=data.get("genero_origen"),
     )
 
 

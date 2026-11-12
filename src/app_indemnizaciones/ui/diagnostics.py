@@ -218,23 +218,44 @@ def build_documents_status(
 
 def build_cetil_diagnostics(result: CetilExtractionResult) -> html.Div:
     summary = build_extraction_summary(result)
-    return html.Div(
-        [
+    fields = build_field_diagnostics(result)
+    attention = _sorted_issues(
+        [i for i in result.issues if i.severity.rank >= IssueSeverity.WARNING.rank]
+    )
+    info = _sorted_issues(
+        [i for i in result.issues if i.severity.rank < IssueSeverity.WARNING.rank]
+    )
+    children: list[object] = [
+        html.Div(
+            [
+                html.H4("Diagnóstico de extracción", className="diagnostics__title"),
+                html.P(summary.status_message, className="diagnostics__subtitle"),
+            ],
+            className="diagnostics__header",
+        ),
+        _severity_counters(result),
+    ]
+    if attention:
+        children.append(_attention_section(attention))
+    else:
+        children.append(
             html.Div(
-                [
-                    html.H4("Diagnóstico de extracción", className="diagnostics__title"),
-                    html.P(
-                        summary.status_message,
-                        className="diagnostics__subtitle",
-                    ),
-                ],
-                className="diagnostics__header",
-            ),
-            _severity_counters(result),
-            _fields_table(build_field_diagnostics(result)),
-            _issues_section(result.issues),
-        ],
-        className="cetil-diagnostics",
+                "No se registraron incidencias en la extracción."
+                if not result.issues
+                else "Sin incidencias que requieran acción.",
+                className="diagnostics__empty",
+            )
+        )
+    if info:
+        children.append(_info_section(info))
+    children.append(_fields_section(fields))
+    return html.Div(children, className="cetil-diagnostics")
+
+
+def _sorted_issues(issues: list[ExtractionIssue]) -> list[ExtractionIssue]:
+    return sorted(
+        issues,
+        key=lambda issue: (-issue.severity.rank, issue.page or 0, issue.field or ""),
     )
 
 
@@ -266,129 +287,134 @@ def _severity_counters(result: CetilExtractionResult) -> html.Div:
     )
 
 
-def _fields_table(rows: list[FieldDiagnostic]) -> html.Div:
-    return html.Div(
-        [
-            html.H5("Campos detectados", className="diagnostics__section-title"),
+def _fields_section(rows: list[FieldDiagnostic]) -> html.Div:
+    problems = [row for row in rows if row.status != STATUS_OK]
+    detected = len(rows) - len(problems)
+    children: list[object] = []
+    if problems:
+        children.append(
             html.Div(
-                html.Table(
-                    [
-                        html.Thead(
-                            html.Tr(
-                                [
-                                    html.Th("Campo"),
-                                    html.Th("Estado"),
-                                    html.Th("Valor"),
-                                    html.Th("Pág."),
-                                ]
-                            )
-                        ),
-                        html.Tbody(
-                            [
-                                html.Tr(
-                                    [
-                                        html.Td(row.label),
-                                        html.Td(
-                                            html.Span(
-                                                row.status,
-                                                className=(
-                                                    "diagnostic-status "
-                                                    + _FIELD_CLASS.get(row.status, "")
-                                                ),
-                                            )
-                                        ),
-                                        html.Td(
-                                            [
-                                                html.Span(row.value or "No detectado"),
-                                                html.Span(
-                                                    f" {row.note}" if row.note else "",
-                                                    className="diagnostics__note",
-                                                ),
-                                            ]
-                                        ),
-                                        html.Td(row.page or "—"),
-                                    ]
-                                )
-                                for row in rows
-                            ]
-                        ),
+                [
+                    html.Span("Campos por revisar:", className="diagnostics__note"),
+                    *[
+                        html.Span(
+                            f"{row.label} · {row.status}",
+                            className="diagnostic-status " + _FIELD_CLASS.get(row.status, ""),
+                        )
+                        for row in problems
                     ],
-                    className="diagnostics__table",
-                ),
-                className="diagnostics__table-wrap",
-            ),
-        ],
-        className="diagnostics__block",
-    )
-
-
-def _issues_section(issues: list[ExtractionIssue]) -> html.Div:
-    if not issues:
-        return html.Div(
-            "No se registraron incidencias en la extracción.",
-            className="diagnostics__empty",
+                ],
+                className="diagnostics__chips",
+            )
         )
-
-    ordered = sorted(
-        issues,
-        key=lambda issue: (-issue.severity.rank, issue.page or 0, issue.field or ""),
+    children.append(
+        html.Details(
+            [
+                html.Summary(f"Ver campos detectados ({detected} de {len(rows)})"),
+                html.Div(
+                    html.Table(
+                        [
+                            html.Thead(
+                                html.Tr(
+                                    [html.Th("Campo"), html.Th("Estado"), html.Th("Valor")]
+                                )
+                            ),
+                            html.Tbody([_field_row(row) for row in rows]),
+                        ],
+                        className="diagnostics__table",
+                    ),
+                    className="diagnostics__table-wrap",
+                ),
+            ],
+            className="diagnostics__details",
+        )
     )
+    return html.Div(children, className="diagnostics__block")
+
+
+def _field_row(row: FieldDiagnostic) -> html.Tr:
+    page = f" · pág. {row.page}" if row.page and row.page != "—" else ""
+    return html.Tr(
+        [
+            html.Td(row.label),
+            html.Td(
+                html.Span(
+                    row.status,
+                    className="diagnostic-status " + _FIELD_CLASS.get(row.status, ""),
+                )
+            ),
+            html.Td(
+                [
+                    html.Span(row.value or "No detectado"),
+                    html.Span(
+                        f" {row.note}{page}" if row.note else page,
+                        className="diagnostics__note",
+                    ),
+                ],
+                className="diagnostics__cell-value",
+            ),
+        ]
+    )
+
+
+def _attention_section(issues: list[ExtractionIssue]) -> html.Div:
     return html.Div(
         [
             html.H5(
-                f"Incidencias ({len(issues)})",
+                f"Requiere atención ({len(issues)})",
                 className="diagnostics__section-title",
             ),
-            html.Div(
-                html.Table(
-                    [
-                        html.Thead(
-                            html.Tr(
-                                [
-                                    html.Th("Severidad"),
-                                    html.Th("Código"),
-                                    html.Th("Campo / página"),
-                                    html.Th("Qué pasó"),
-                                    html.Th("Qué hacer"),
-                                ]
-                            )
-                        ),
-                        html.Tbody([_issue_row(issue) for issue in ordered]),
-                    ],
-                    className="diagnostics__table diagnostics__table--issues",
-                ),
-                className="diagnostics__table-wrap",
+            html.Ul(
+                [_issue_card(issue) for issue in issues],
+                className="diagnostics__issues",
             ),
         ],
         className="diagnostics__block",
     )
 
 
-def _issue_row(issue: ExtractionIssue) -> html.Tr:
+def _info_section(issues: list[ExtractionIssue]) -> html.Details:
+    return html.Details(
+        [
+            html.Summary(f"Ver notas informativas ({len(issues)})"),
+            html.Ul(
+                [_issue_card(issue) for issue in issues],
+                className="diagnostics__issues",
+            ),
+        ],
+        className="diagnostics__details",
+    )
+
+
+def _issue_card(issue: ExtractionIssue) -> html.Li:
     location = issue.field or "documento"
     if issue.page:
         location = f"{location} · pág. {issue.page}"
-    return html.Tr(
+    head = html.Div(
         [
-            html.Td(
-                html.Span(
-                    issue.severity.label,
-                    className=f"diagnostic-badge {_SEVERITY_CLASS[issue.severity]}",
-                )
+            html.Span(
+                f"{issue.severity.label} · {issue.code.value}",
+                className=f"diagnostic-badge {_SEVERITY_CLASS[issue.severity]}",
             ),
-            html.Td(html.Code(issue.code.value, className="diagnostic-code")),
-            html.Td(location),
-            html.Td(
-                [
-                    html.Div(issue.message),
-                    html.Div(
-                        issue.cause or "",
-                        className="diagnostics__note",
-                    )
-                    if issue.cause
-                    else None,
-                ]
-            ),
-            html.Td(issue.action or "—"),
-        ]
+            html.Span(issue.message, className="diagnostics__issue-msg", title=issue.message),
+            html.Span(location, className="diagnostics__note diagnostics__issue-loc"),
+        ],
+        className="diagnostics__issue-head",
     )
+    body: list[object] = [head]
+    if issue.action:
+        body.append(
+            html.Div(
+                [html.Strong("Qué hacer: "), issue.action],
+                className="diagnostics__issue-action",
+                title=issue.action,
+            )
+        )
+    if issue.cause:
+        body.append(
+            html.Details(
+                [html.Summary("Detalle"), html.Div(issue.cause, className="diagnostics__note")],
+                className="diagnostics__issue-detail",
+            )
+        )
+    return html.Li(body, className="diagnostics__issue")

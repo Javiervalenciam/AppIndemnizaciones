@@ -12,9 +12,24 @@ from app_indemnizaciones.domain.models import (
     ResultadoPeriodo,
 )
 from app_indemnizaciones.services.ipc_loader import IpcRepository
-from app_indemnizaciones.utils.dates import calendar_days, commercial_360_days, parse_date
+from app_indemnizaciones.utils.dates import (
+    calendar_days,
+    commercial_360_days,
+    parse_date,
+    to_period_yyyy_mm,
+)
 
 getcontext().prec = 28
+
+# El DANE/BanRep publica el IPC de un mes a comienzos del siguiente; se tolera
+# un rezago de hasta 2 meses entre la fecha de liquidación y el último IPC cargado.
+MAX_IPC_LAG_MONTHS = 2
+
+
+def _months_between(periodo_desde: str, periodo_hasta: str) -> int:
+    anio_d, mes_d = (int(part) for part in periodo_desde.split("-"))
+    anio_h, mes_h = (int(part) for part in periodo_hasta.split("-"))
+    return (anio_h - anio_d) * 12 + (mes_h - mes_d)
 
 
 class LiquidacionService:
@@ -33,6 +48,15 @@ class LiquidacionService:
 
         convention = day_count or self.config.default_day_count
         fecha_normalizada, warnings = self._normalize_fecha_liquidacion(fecha_liquidacion)
+        if fecha_normalizada is not None:
+            posteriores = [p for p in periodos if p.fecha_fin > fecha_normalizada]
+            if posteriores:
+                ultimo = max(p.fecha_fin for p in posteriores)
+                raise LiquidacionError(
+                    f"{len(posteriores)} periodo(s) terminan después de la fecha de "
+                    f"liquidación {fecha_normalizada.isoformat()} (hasta {ultimo.isoformat()}). "
+                    "Corrija las fechas o la fecha de liquidación."
+                )
         ipc_actual, ipc_fuente = self._resolve_ipc_actual(fecha_normalizada, warnings)
 
         resultados = [
@@ -98,6 +122,22 @@ class LiquidacionService:
             current = self.ipc_repository.obtener_por_fecha(fecha_liquidacion)
         except IpcNotFoundError as exc:
             summary = self.ipc_repository.summary()
+            periodo_liquidacion = to_period_yyyy_mm(fecha_liquidacion)
+            if (
+                periodo_liquidacion > summary.periodo_maximo
+                and fecha_liquidacion <= date.today()
+                and _months_between(summary.periodo_maximo, periodo_liquidacion)
+                <= MAX_IPC_LAG_MONTHS
+            ):
+                # El Banco de la República publica el IPC con rezago: si el mes de
+                # liquidación aún no tiene dato, se usa el último IPC disponible.
+                latest = self.ipc_repository.get_current_ipc()
+                warnings.append(
+                    f"El IPC de {periodo_liquidacion} aún no está publicado: se usó el "
+                    f"último IPC disponible ({latest.periodo}) como IPC actual. "
+                    "Recalcule cuando se publique el IPC del mes de liquidación."
+                )
+                return latest, "ultimo_disponible"
             raise LiquidacionError(
                 "No existe IPC para el periodo de la fecha de liquidación "
                 f"{fecha_liquidacion.isoformat()}. El archivo IPC cargado cubre "
