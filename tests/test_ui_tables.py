@@ -19,6 +19,13 @@ def test_tabla_revision_no_expone_columnas_calculadas_editables():
     assert "ipc_actual" not in column_ids
     assert "ibc_actualizado" not in column_ids
     assert "ibc_semanal_actualizado" not in column_ids
+    assert "documento_cetil" in column_ids
+
+
+def test_tabla_revision_no_permite_editar_la_procedencia_del_certificado():
+    editable_ids = {column["id"] for column in PERIODOS_COLUMNS if column.get("editable")}
+
+    assert "documento_cetil" not in editable_ids
 
 
 def test_tabla_revision_bloquea_edicion_global_y_oculta_ids_tecnicos():

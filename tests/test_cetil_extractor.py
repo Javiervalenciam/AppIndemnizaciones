@@ -61,8 +61,9 @@ def test_extract_worker_from_text():
     assert result.trabajador.primer_nombre == "Ana"
     assert result.trabajador.segundo_nombre == "Maria"
     assert result.trabajador.nombre_completo == "Ana Maria Prueba Datos"
-    assert result.trabajador.genero is None
-    assert "No se detectó campo explícito de género en el CETIL." in result.advertencias
+    assert result.trabajador.genero == "Mujer"
+    assert result.trabajador.genero_origen == "base_nombres"
+    assert not any("género" in w for w in result.advertencias)
 
 
 def test_extract_entidad_empleadora_from_text():

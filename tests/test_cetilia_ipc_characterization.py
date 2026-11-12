@@ -12,8 +12,8 @@ from app_indemnizaciones.services.ipc_loader import IpcRepository
 from app_indemnizaciones.services.liquidacion_service import LiquidacionService
 
 CURRENT_BEHAVIOR = "CURRENT_BEHAVIOR: characterization only; do not correct in this baseline."
-KNOWN_BUG_FECHA_LIQUIDACION = (
-    "KNOWN_BUG_FECHA_LIQUIDACION: requested date is ignored and latest IPC is used."
+FIXED_FECHA_LIQUIDACION = (
+    "FIXED_FECHA_LIQUIDACION: the requested date selects the IPC for that period."
 )
 
 
@@ -104,8 +104,8 @@ def test_current_behavior_ipc_future_record_becomes_current() -> None:
     assert current.indice == Decimal("200"), CURRENT_BEHAVIOR
 
 
-def test_known_bug_fecha_liquidacion_uses_latest_ipc_instead_of_requested_date() -> None:
-    """KNOWN_BUG_FECHA_LIQUIDACION: freeze the defect without correcting it."""
+def test_fecha_liquidacion_usa_el_ipc_del_periodo_solicitado() -> None:
+    """FIXED_FECHA_LIQUIDACION: the requested date must drive the IPC actual."""
     repo = _repo(
         [
             ("1983-01-31", "10"),
@@ -125,5 +125,25 @@ def test_known_bug_fecha_liquidacion_uses_latest_ipc_instead_of_requested_date()
         fecha_liquidacion=date(2025, 1, 31),
     )
 
-    assert result.periodos[0].periodo_ipc_actual == "2026-01", KNOWN_BUG_FECHA_LIQUIDACION
-    assert result.periodos[0].ipc_actual == Decimal("200"), KNOWN_BUG_FECHA_LIQUIDACION
+    assert result.periodos[0].periodo_ipc_actual == "2025-01", FIXED_FECHA_LIQUIDACION
+    assert result.periodos[0].ipc_actual == Decimal("100"), FIXED_FECHA_LIQUIDACION
+    assert result.fecha_liquidacion == date(2025, 1, 31), FIXED_FECHA_LIQUIDACION
+    assert result.ipc_actual_fuente == "fecha_liquidacion", FIXED_FECHA_LIQUIDACION
+    assert result.advertencias == (), FIXED_FECHA_LIQUIDACION
+
+
+def test_sin_fecha_liquidacion_usa_ultimo_ipc_y_advierte() -> None:
+    repo = _repo([("1983-01-31", "10"), ("2026-01-31", "200")])
+    periodo = PeriodoLaborado(
+        fecha_inicio=date(1983, 1, 1),
+        fecha_fin=date(1983, 12, 31),
+        ibl_reportado=Decimal("1000"),
+        anio=1983,
+    )
+
+    result = LiquidacionService(repo).calcular([periodo])
+
+    assert result.periodos[0].periodo_ipc_actual == "2026-01", FIXED_FECHA_LIQUIDACION
+    assert result.ipc_actual_fuente == "ultimo_registro", FIXED_FECHA_LIQUIDACION
+    assert any("No se indicó fecha de liquidación" in text for text in result.advertencias)
+

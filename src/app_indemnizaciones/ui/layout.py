@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import date
+
 import dash_bootstrap_components as dbc
 from dash import dcc, html
 
@@ -65,11 +67,17 @@ def build_layout() -> html.Div:
                             "Cargar certificado CETIL",
                             [
                                 dcc.Store(id="cetil-store"),
+                                dcc.Store(id="cetil-docs-store", data=[]),
                                 upload_zone(
                                     "upload-cetil",
-                                    hint="Arrastra o selecciona certificado CETIL en PDF",
+                                    hint=(
+                                        "Arrastra o selecciona uno o varios certificados "
+                                        "CETIL en PDF"
+                                    ),
+                                    multiple=True,
                                 ),
                                 html.Div(id="cetil-upload-status", className="mt-3"),
+                                html.Div(id="cetil-docs-list", className="mt-3"),
                                 html.Div(
                                     [
                                         dbc.Button(
@@ -88,7 +96,10 @@ def build_layout() -> html.Div:
                                 ),
                                 html.Div(id="cetil-apply-status", className="mt-3"),
                             ],
-                            subtitle="Extrae datos revisables. No calcula sin validación manual.",
+                            subtitle=(
+                                "Carga uno o varios CETIL del mismo trabajador. "
+                                "Extrae datos revisables y no calcula sin validación manual."
+                            ),
                             status="Manual",
                             status_tone="info",
                         ),
@@ -103,6 +114,32 @@ def build_layout() -> html.Div:
                 "Datos extraídos del CETIL",
                 [
                     html.Div(id="cetil-summary", className="mt-3"),
+                    html.Div(
+                        [
+                            html.Label(
+                                "Género del trabajador",
+                                htmlFor="genero-manual",
+                                className="periodos-help",
+                            ),
+                            dcc.Dropdown(
+                                id="genero-manual",
+                                options=[
+                                    {"label": "Hombre", "value": "Hombre"},
+                                    {"label": "Mujer", "value": "Mujer"},
+                                ],
+                                placeholder="Seleccionar (opcional)",
+                                clearable=True,
+                                searchable=False,
+                            ),
+                            html.P(
+                                "Se completa solo si el nombre está en la base de nombres; "
+                                "si no, selecciónelo. No afecta el cálculo.",
+                                className="periodos-help",
+                                id="genero-ayuda",
+                            ),
+                        ],
+                        className="genero-field",
+                    ),
                 ],
                 subtitle="Información detectada en encabezado, empleado y entidad empleadora.",
                 extra_class="mt-3",
@@ -117,6 +154,30 @@ def build_layout() -> html.Div:
                         html.P(
                             "Periodos coincidentes desde CETIL. Primero fechas e IBL antes de calcular.",
                             className="periodos-help",
+                        ),
+                        html.Div(
+                            [
+                                html.Label(
+                                    "Fecha de liquidación",
+                                    htmlFor="fecha-liquidacion",
+                                    className="periodos-help",
+                                ),
+                                dcc.DatePickerSingle(
+                                    id="fecha-liquidacion",
+                                    date=date.today().isoformat(),
+                                    placeholder="AAAA-MM-DD",
+                                    display_format="YYYY-MM-DD",
+                                    first_day_of_week=1,
+                                    className="fecha-liquidacion",
+                                ),
+                                html.P(
+                                    "Por defecto es hoy. Si el IPC de ese mes aún no está "
+                                    "publicado, se usa el último disponible y se advierte "
+                                    "en el resultado.",
+                                    className="periodos-help",
+                                ),
+                            ],
+                            className="fecha-liquidacion-field",
                         ),
                         html.Div(id="periodos-alert", className="mb-3"),
                         html.Div(

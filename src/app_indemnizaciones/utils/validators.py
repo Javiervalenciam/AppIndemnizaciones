@@ -35,6 +35,17 @@ def validate_period_row(row: dict[str, Any]) -> dict[str, str]:
     fecha_fin = _parse_iso_date(normalized["fecha_fin"], "fecha_fin", errors)
     if fecha_inicio and fecha_fin and fecha_inicio > fecha_fin:
         errors.append("fecha_inicio no puede ser posterior a fecha_fin")
+    elif fecha_inicio and fecha_fin:
+        # Cada fila se indexa con el IPC promedio de un solo año: no puede
+        # abarcar varios años ni contradecir el año declarado.
+        if fecha_inicio.year != fecha_fin.year:
+            errors.append(
+                "el periodo abarca más de un año calendario; divídalo en una fila por año"
+            )
+        elif normalized["anio"] and normalized["anio"] != str(fecha_inicio.year):
+            errors.append(
+                f"el año {normalized['anio']} no coincide con las fechas del periodo"
+            )
 
     ibl_text = normalized["ibl_reportado"]
     if not ibl_text:
@@ -69,7 +80,7 @@ def validate_period_row(row: dict[str, Any]) -> dict[str, str]:
 def validate_period_rows(rows: list[dict[str, Any]] | None) -> list[dict[str, str]]:
     validated = [validate_period_row(row) for row in rows or []]
     _add_duplicate_warnings(validated)
-    _add_overlap_warnings(validated)
+    _add_overlap_errors(validated)
     return validated
 
 
@@ -104,7 +115,7 @@ def _add_duplicate_warnings(rows: list[dict[str, str]]) -> None:
         _mark_warning(rows[index], "posible duplicado")
 
 
-def _add_overlap_warnings(rows: list[dict[str, str]]) -> None:
+def _add_overlap_errors(rows: list[dict[str, str]]) -> None:
     ranges: list[tuple[int, date, date]] = []
     for index, row in enumerate(rows):
         if row.get("estado_validacion") == "ERROR":
@@ -118,7 +129,18 @@ def _add_overlap_warnings(rows: list[dict[str, str]]) -> None:
                 overlapped.update({left_index, right_index})
 
     for index in overlapped:
-        _mark_warning(rows[index], "posible solapamiento")
+        _mark_error(
+            rows[index],
+            "solapamiento de fechas con otra fila: ajuste o elimine una de las filas "
+            "(el tiempo simultáneo no duplica semanas)",
+        )
+
+
+def _mark_error(row: dict[str, str], message: str) -> None:
+    if message in row.get("errores", ""):
+        return
+    row["estado_validacion"] = "ERROR"
+    _append_message(row, message)
 
 
 def _mark_warning(row: dict[str, str], message: str) -> None:

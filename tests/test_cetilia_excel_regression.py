@@ -5,18 +5,13 @@ from decimal import Decimal
 from io import BytesIO
 
 import pandas as pd
+import pytest
 from openpyxl import load_workbook
 
-from app_indemnizaciones.config import MONTHLY_TO_WEEKLY_DIVISOR
 from app_indemnizaciones.domain.models import PeriodoLaborado, ResultadoLiquidacion
 from app_indemnizaciones.services.excel_exporter import build_liquidacion_xlsx
 from app_indemnizaciones.services.ipc_loader import IpcRepository
 from app_indemnizaciones.services.liquidacion_service import LiquidacionService
-
-CURRENT_BEHAVIOR_DUPLICATED_FORMULA = (
-    "CURRENT_BEHAVIOR: Excel duplicates engine formulas; do not consolidate in this phase."
-)
-CENT = Decimal("0.01")
 
 
 def _resultado() -> ResultadoLiquidacion:
@@ -65,47 +60,77 @@ def _xlsx_sheets(resultado: ResultadoLiquidacion):
     return formulas, values
 
 
-def _as_decimal(value: int | float) -> Decimal:
-    return Decimal(str(value))
-
-
 def test_resultado_liquidacion_matches_xlsx_cached_values() -> None:
     resultado = _resultado()
     _formulas, values = _xlsx_sheets(resultado)
 
-    for excel_row, period in zip((14, 15), resultado.periodos, strict=True):
+    for excel_row, period in zip((17, 18), resultado.periodos, strict=True):
         assert values[f"B{excel_row}"].value.date() == period.fecha_inicio
         assert values[f"C{excel_row}"].value.date() == period.fecha_fin
         assert values[f"D{excel_row}"].value == period.dias
-        assert values[f"E{excel_row}"].value == float(period.semanas)
-        assert _as_decimal(values[f"F{excel_row}"].value) == period.ibl_reportado.quantize(CENT)
-        assert values[f"G{excel_row}"].value == float(resultado.ppc)
-        assert _as_decimal(values[f"H{excel_row}"].value) == period.ipc_inicial
-        assert _as_decimal(values[f"I{excel_row}"].value) == period.ipc_actual
-        assert _as_decimal(values[f"J{excel_row}"].value) == period.ibc_actualizado.quantize(CENT)
-        assert _as_decimal(values[f"K{excel_row}"].value) == (
-            period.ibc_semanal_actualizado.quantize(CENT)
+        assert values[f"E{excel_row}"].value == pytest.approx(float(period.semanas))
+        assert values[f"F{excel_row}"].value == pytest.approx(float(period.ibl_reportado))
+        assert values[f"G{excel_row}"].value == pytest.approx(float(resultado.ppc))
+        assert values[f"H{excel_row}"].value == pytest.approx(float(period.ipc_inicial))
+        assert values[f"I{excel_row}"].value == pytest.approx(float(period.ipc_actual))
+        assert values[f"J{excel_row}"].value == pytest.approx(
+            float(period.ibc_actualizado)
+        )
+        assert values[f"K{excel_row}"].value == pytest.approx(
+            float(period.ibc_semanal_actualizado)
         )
 
-    assert values["B18"].value == resultado.total_dias
-    assert values["B19"].value == float(resultado.sc)
-    assert values["B20"].value == float(resultado.ppc)
-    assert _as_decimal(values["B21"].value) == resultado.sbc.quantize(CENT)
-    assert _as_decimal(values["B22"].value) == resultado.isv.quantize(CENT)
+    assert values["D19"].value == resultado.total_dias
+    assert values["E19"].value == pytest.approx(float(resultado.sc))
+    assert values["K19"].value == pytest.approx(float(resultado.sbc))
+    assert values["A13"].value == resultado.total_dias
+    assert values["C13"].value == pytest.approx(float(resultado.sc))
+    assert values["E13"].value == pytest.approx(float(resultado.sbc))
+    assert values["I13"].value == pytest.approx(float(resultado.isv))
 
 
-def test_current_excel_formulas_duplicate_engine_formulas_by_design() -> None:
+def test_excel_escribe_formulas_explicativas_con_valor_cacheado() -> None:
     resultado = _resultado()
-    formulas, _values = _xlsx_sheets(resultado)
+    formulas, values = _xlsx_sheets(resultado)
 
-    assert formulas["D14"].value == "=DAYS360(B14,C14)", CURRENT_BEHAVIOR_DUPLICATED_FORMULA
-    assert formulas["E14"].value == "=D14/7", CURRENT_BEHAVIOR_DUPLICATED_FORMULA
-    assert formulas["J14"].value == "=F14*(I14/H14)", CURRENT_BEHAVIOR_DUPLICATED_FORMULA
-    assert formulas["K14"].value == (
-        f"=J14/{MONTHLY_TO_WEEKLY_DIVISOR}"
-    ), CURRENT_BEHAVIOR_DUPLICATED_FORMULA
-    assert formulas["B18"].value == "=SUM(D14:D15)", CURRENT_BEHAVIOR_DUPLICATED_FORMULA
-    assert formulas["B19"].value == "=SUM(E14:E15)", CURRENT_BEHAVIOR_DUPLICATED_FORMULA
-    assert formulas["B20"].value == "=AVERAGE(G14:G15)", CURRENT_BEHAVIOR_DUPLICATED_FORMULA
-    assert formulas["B21"].value == "=AVERAGE(K14:K15)", CURRENT_BEHAVIOR_DUPLICATED_FORMULA
-    assert formulas["B22"].value == "=B21*B19*B20", CURRENT_BEHAVIOR_DUPLICATED_FORMULA
+    expected_formulas = {
+        "D17": "=C17-B17+1",
+        "E17": "=D17/7",
+        "J17": "=F17*(I17/H17)",
+        "K17": "=J17/$I$9",
+        "D18": "=C18-B18+1",
+        "K18": "=J18/$I$9",
+        "D19": "=SUM(D17:D18)",
+        "E19": "=D19/7",
+        "K19": "=AVERAGE(K17:K18)",
+        "A13": "=D19",
+        "C13": "=E19",
+        "E13": "=K19",
+        "I13": "=E13*C13*G13",
+    }
+    for cell, formula in expected_formulas.items():
+        assert formulas[cell].value == formula
+
+    first = resultado.periodos[0]
+    assert values["D17"].value == first.dias
+    assert values["K17"].value == pytest.approx(
+        float(first.ibc_semanal_actualizado)
+    )
+    assert values["I13"].value == pytest.approx(float(resultado.isv))
+
+
+def test_excel_incluye_trazabilidad_por_fila() -> None:
+    resultado = _resultado()
+    content = build_liquidacion_xlsx(resultado)
+    workbook = load_workbook(BytesIO(content), data_only=True)
+
+    assert workbook.sheetnames == ["Liquidación", "Trazabilidad"]
+    ws = workbook["Trazabilidad"]
+    assert ws["A7"].value == 1983
+    assert ws["D7"].value == resultado.periodos[0].dias
+    assert ws["O7"].value == pytest.approx(
+        float(resultado.periodos[0].ibc_actualizado)
+    )
+    assert ws["P7"].value == pytest.approx(
+        float(resultado.periodos[0].ibc_semanal_actualizado)
+    )

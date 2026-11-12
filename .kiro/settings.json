@@ -12,7 +12,7 @@
     "requireManualReviewAfterCetilExtraction": true
   },
   "calculation": {
-    "defaultDayCountConvention": "commercial_360",
+    "defaultDayCountConvention": "calendar",
     "ppc": 0.0227,
     "weeksPerYear": 52.14,
     "monthsPerYear": 12,

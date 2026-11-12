@@ -96,14 +96,14 @@ def test_no_false_entity_empty_warning():
     assert "entidad vacía" not in result["errores"]
 
 
-def test_duplicado_exacto_genera_advertencia():
+def test_duplicado_exacto_es_error_porque_se_solapa():
     rows = validate_period_rows([_row(id="a"), _row(id="b")])
 
-    assert [row["estado_validacion"] for row in rows] == ["ADVERTENCIA", "ADVERTENCIA"]
+    assert [row["estado_validacion"] for row in rows] == ["ERROR", "ERROR"]
     assert all("posible duplicado" in row["errores"] for row in rows)
 
 
-def test_solapamiento_genera_advertencia():
+def test_solapamiento_es_error_bloqueante():
     rows = validate_period_rows(
         [
             _row(id="a", fecha_inicio="2020-01-01", fecha_fin="2020-06-30"),
@@ -111,5 +111,21 @@ def test_solapamiento_genera_advertencia():
         ]
     )
 
-    assert [row["estado_validacion"] for row in rows] == ["ADVERTENCIA", "ADVERTENCIA"]
-    assert all("posible solapamiento" in row["errores"] for row in rows)
+    assert [row["estado_validacion"] for row in rows] == ["ERROR", "ERROR"]
+    assert all("solapamiento de fechas" in row["errores"] for row in rows)
+
+
+def test_periodo_de_varios_anios_es_error():
+    result = validate_period_row(_row(fecha_inicio="2019-06-01", fecha_fin="2020-06-30"))
+
+    assert result["estado_validacion"] == "ERROR"
+    assert "más de un año calendario" in result["errores"]
+
+
+def test_anio_declarado_debe_coincidir_con_las_fechas():
+    result = validate_period_row(
+        _row(fecha_inicio="1990-01-01", fecha_fin="1990-12-31", anio="2020")
+    )
+
+    assert result["estado_validacion"] == "ERROR"
+    assert "no coincide con las fechas" in result["errores"]

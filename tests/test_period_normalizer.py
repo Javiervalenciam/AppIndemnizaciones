@@ -209,10 +209,10 @@ def test_anualizacion_excel_base_y_ibl_por_anio():
         (1984, date(1984, 1, 1), date(1984, 12, 31), Decimal("11298")),
         (1985, date(1985, 1, 1), date(1985, 12, 31), Decimal("16500")),
         (1986, date(1986, 1, 1), date(1986, 12, 31), Decimal("16850")),
-        (1987, date(1987, 1, 1), date(1987, 11, 7), Decimal("20510")),
+        (1987, date(1987, 1, 1), date(1987, 12, 31), Decimal("20510")),
         (1988, date(1988, 1, 1), date(1988, 1, 17), Decimal("20510")),
     ]
-    assert any("anualización tipo Excel base" in warning for warning in warnings)
+    assert not any("anualización tipo Excel base" in warning for warning in warnings)
 
 
 def test_filas_cetil_anuales_quedan_con_fuente_anio_y_validacion():

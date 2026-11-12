@@ -101,6 +101,7 @@ def test_private_snapshot_contract_excludes_full_text_and_supports_redaction() -
         "factores_salariales",
         "filas_liquidables_anuales",
         "advertencias",
+        "issues",
         "confidence_score",
     }
 

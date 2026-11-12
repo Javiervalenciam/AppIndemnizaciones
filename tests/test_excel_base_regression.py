@@ -40,7 +40,7 @@ def test_regresion_excel_base_anualizacion_ibl_y_liquidacion():
         (1984, date(1984, 1, 1), date(1984, 12, 31), Decimal("11298")),
         (1985, date(1985, 1, 1), date(1985, 12, 31), Decimal("16500")),
         (1986, date(1986, 1, 1), date(1986, 12, 31), Decimal("16850")),
-        (1987, date(1987, 1, 1), date(1987, 11, 7), Decimal("20510")),
+        (1987, date(1987, 1, 1), date(1987, 12, 31), Decimal("20510")),
         (1988, date(1988, 1, 1), date(1988, 1, 17), Decimal("20510")),
     ]
 
@@ -57,14 +57,14 @@ def test_regresion_excel_base_anualizacion_ibl_y_liquidacion():
         ]
     )
 
-    assert [row.dias for row in result.periodos] == [92, 360, 360, 360, 306, 16]
+    assert [row.dias for row in result.periodos] == [94, 366, 365, 365, 365, 17]
     assert [row.semanas.quantize(Decimal("0.01")) for row in result.periodos] == [
-        Decimal("13.14"),
-        Decimal("51.43"),
-        Decimal("51.43"),
-        Decimal("51.43"),
-        Decimal("43.71"),
-        Decimal("2.29"),
+        Decimal("13.43"),
+        Decimal("52.29"),
+        Decimal("52.14"),
+        Decimal("52.14"),
+        Decimal("52.14"),
+        Decimal("2.43"),
     ]
 
     first = result.periodos[0]
