@@ -23,7 +23,7 @@ def create_app() -> dash.Dash:
         suppress_callback_exceptions=True,
     )
     app.title = "AppIndemnizaciones"
-    app.layout = build_layout()
+    app.layout = build_layout  # callable: la fecha por defecto es la de cada carga de página
     register_callbacks(app)
     return app
 

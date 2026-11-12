@@ -227,6 +227,13 @@ class IpcRepository:
         except KeyError as exc:
             raise IpcNotFoundError(f"No existe IPC para el periodo {periodo}.") from exc
 
+    def obtener_por_periodo(self, periodo: str) -> IpcRegistro:
+        """Busca por periodo normalizado `AAAA-MM`."""
+        try:
+            return self._by_period[periodo]
+        except KeyError as exc:
+            raise IpcNotFoundError(f"No existe IPC para el periodo {periodo}.") from exc
+
     def obtener_ipc(self, fecha_historica: object, fecha_actual: object | None = None) -> IpcPair:
         inicial = self.obtener_por_fecha(fecha_historica)
         actual = self.obtener_por_fecha(fecha_actual) if fecha_actual else self.ultimo_registro()

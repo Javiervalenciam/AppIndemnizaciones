@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 EMPTY_CETIL_STATE = None
+EMPTY_CETIL_DOCS_STATE: list[dict[str, Any]] = []
 EMPTY_PERIODOS_STATE: list[dict[str, str]] = []
 EMPTY_RESULTADO_STATE = None
 
@@ -11,6 +12,7 @@ def clear_cetil_session_state(ipc_state: Any = None) -> dict[str, Any]:
     return {
         "ipc_store": ipc_state,
         "cetil_store": EMPTY_CETIL_STATE,
+        "cetil_docs_store": list(EMPTY_CETIL_DOCS_STATE),
         "periodos_store": list(EMPTY_PERIODOS_STATE),
         "resultado_store": EMPTY_RESULTADO_STATE,
     }

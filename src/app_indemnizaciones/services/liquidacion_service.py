@@ -1,18 +1,35 @@
 from __future__ import annotations
 
+from datetime import date
 from decimal import Decimal, getcontext
 
 from app_indemnizaciones.config import MONTHLY_TO_WEEKLY_DIVISOR, CalculationConfig
-from app_indemnizaciones.domain.exceptions import LiquidacionError
+from app_indemnizaciones.domain.exceptions import IpcNotFoundError, LiquidacionError
 from app_indemnizaciones.domain.models import (
+    IpcRegistro,
     PeriodoLaborado,
     ResultadoLiquidacion,
     ResultadoPeriodo,
 )
 from app_indemnizaciones.services.ipc_loader import IpcRepository
-from app_indemnizaciones.utils.dates import calendar_days, commercial_360_days
+from app_indemnizaciones.utils.dates import (
+    calendar_days,
+    commercial_360_days,
+    parse_date,
+    to_period_yyyy_mm,
+)
 
 getcontext().prec = 28
+
+# El DANE/BanRep publica el IPC de un mes a comienzos del siguiente; se tolera
+# un rezago de hasta 2 meses entre la fecha de liquidación y el último IPC cargado.
+MAX_IPC_LAG_MONTHS = 2
+
+
+def _months_between(periodo_desde: str, periodo_hasta: str) -> int:
+    anio_d, mes_d = (int(part) for part in periodo_desde.split("-"))
+    anio_h, mes_h = (int(part) for part in periodo_hasta.split("-"))
+    return (anio_h - anio_d) * 12 + (mes_h - mes_d)
 
 
 class LiquidacionService:
@@ -30,8 +47,24 @@ class LiquidacionService:
             raise LiquidacionError("Debe existir al menos un periodo laborado.")
 
         convention = day_count or self.config.default_day_count
+        fecha_normalizada, warnings = self._normalize_fecha_liquidacion(fecha_liquidacion)
+        if fecha_normalizada is not None:
+            posteriores = [p for p in periodos if p.fecha_fin > fecha_normalizada]
+            if posteriores:
+                ultimo = max(p.fecha_fin for p in posteriores)
+                raise LiquidacionError(
+                    f"{len(posteriores)} periodo(s) terminan después de la fecha de "
+                    f"liquidación {fecha_normalizada.isoformat()} (hasta {ultimo.isoformat()}). "
+                    "Corrija las fechas o la fecha de liquidación."
+                )
+        ipc_actual, ipc_fuente = self._resolve_ipc_actual(fecha_normalizada, warnings)
+
         resultados = [
-            self._calcular_periodo(periodo, fecha_liquidacion=fecha_liquidacion, day_count=convention)
+            self._calcular_periodo(
+                periodo,
+                ipc_actual=ipc_actual,
+                day_count=convention,
+            )
             for periodo in periodos
         ]
 
@@ -54,12 +87,69 @@ class LiquidacionService:
             sbc=sbc,
             ppc=ppc,
             isv=isv,
+            fecha_liquidacion=fecha_normalizada,
+            ipc_actual_periodo=ipc_actual.periodo,
+            ipc_actual_fuente=ipc_fuente,
+            advertencias=tuple(warnings),
         )
+
+    def _normalize_fecha_liquidacion(
+        self, fecha_liquidacion: object | None
+    ) -> tuple[date | None, list[str]]:
+        if fecha_liquidacion is None or str(fecha_liquidacion).strip() == "":
+            return None, []
+        try:
+            return parse_date(fecha_liquidacion), []
+        except ValueError as exc:
+            raise LiquidacionError(
+                f"Fecha de liquidación inválida: {fecha_liquidacion!r}. Use el formato AAAA-MM-DD."
+            ) from exc
+
+    def _resolve_ipc_actual(
+        self,
+        fecha_liquidacion: date | None,
+        warnings: list[str],
+    ) -> tuple[IpcRegistro, str]:
+        if fecha_liquidacion is None:
+            current = self.ipc_repository.get_current_ipc()
+            warnings.append(
+                "No se indicó fecha de liquidación: se usó el IPC más reciente disponible "
+                f"({current.periodo}). Para una liquidación reproducible indique la fecha."
+            )
+            return current, "ultimo_registro"
+
+        try:
+            current = self.ipc_repository.obtener_por_fecha(fecha_liquidacion)
+        except IpcNotFoundError as exc:
+            summary = self.ipc_repository.summary()
+            periodo_liquidacion = to_period_yyyy_mm(fecha_liquidacion)
+            if (
+                periodo_liquidacion > summary.periodo_maximo
+                and fecha_liquidacion <= date.today()
+                and _months_between(summary.periodo_maximo, periodo_liquidacion)
+                <= MAX_IPC_LAG_MONTHS
+            ):
+                # El Banco de la República publica el IPC con rezago: si el mes de
+                # liquidación aún no tiene dato, se usa el último IPC disponible.
+                latest = self.ipc_repository.get_current_ipc()
+                warnings.append(
+                    f"El IPC de {periodo_liquidacion} aún no está publicado: se usó el "
+                    f"último IPC disponible ({latest.periodo}) como IPC actual. "
+                    "Recalcule cuando se publique el IPC del mes de liquidación."
+                )
+                return latest, "ultimo_disponible"
+            raise LiquidacionError(
+                "No existe IPC para el periodo de la fecha de liquidación "
+                f"{fecha_liquidacion.isoformat()}. El archivo IPC cargado cubre "
+                f"{summary.periodo_minimo} a {summary.periodo_maximo}. "
+                "Cargue un IPC actualizado o elija una fecha dentro del rango."
+            ) from exc
+        return current, "fecha_liquidacion"
 
     def _calcular_periodo(
         self,
         periodo: PeriodoLaborado,
-        fecha_liquidacion: object | None,
+        ipc_actual: IpcRegistro,
         day_count: str,
     ) -> ResultadoPeriodo:
         if periodo.fecha_fin < periodo.fecha_inicio:
@@ -76,7 +166,6 @@ class LiquidacionService:
 
         anio = periodo.anio or periodo.fecha_inicio.year
         ipc_inicial_info = self.ipc_repository.get_annual_average_ipc_info(anio)
-        ipc_actual = self.ipc_repository.get_current_ipc()
         semanas = Decimal(dias) / Decimal(7)
         ibc_actualizado = periodo.ibl_reportado * (ipc_actual.indice / ipc_inicial_info.average)
         ibc_semanal_actualizado = ibc_actualizado / MONTHLY_TO_WEEKLY_DIVISOR
@@ -99,4 +188,5 @@ class LiquidacionService:
             advertencias_ipc=tuple(ipc_inicial_info.warnings),
             cargo=periodo.cargo,
             entidad=periodo.entidad,
+            documento_cetil=periodo.documento_cetil,
         )

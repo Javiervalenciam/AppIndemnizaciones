@@ -28,6 +28,12 @@ PERIODOS_COLUMNS = [
     {"name": "Cargo", "id": "cargo", "type": "text", "editable": True},
     {"name": "Entidad", "id": "entidad", "type": "text", "editable": True},
     {"name": "Fuente", "id": "fuente", "presentation": "dropdown", "type": "text", "editable": False},
+    {
+        "name": "Documento CETIL",
+        "id": "documento_cetil",
+        "type": "text",
+        "editable": False,
+    },
     {"name": "Observaciones", "id": "observaciones", "type": "text", "editable": False},
     {"name": "Estado", "id": "estado_validacion", "type": "text", "editable": False},
     {"name": "Errores / advertencias", "id": "errores", "type": "text", "editable": False},
@@ -145,7 +151,7 @@ def build_periodos_table(data: list[dict[str, str]] | None = None) -> dash_table
     )
 
 
-def _periodo_row(row: ResultadoPeriodo) -> html.Tr:
+def _periodo_row(row: ResultadoPeriodo, ppc: Decimal) -> html.Tr:
     warnings = "; ".join(row.advertencias_ipc)
     return html.Tr(
         [
@@ -155,7 +161,7 @@ def _periodo_row(row: ResultadoPeriodo) -> html.Tr:
             html.Td(row.dias, className="num"),
             html.Td(_fmt_decimal(row.semanas, 2), className="num"),
             html.Td(_fmt_money(row.ibl_reportado), className="money"),
-            html.Td(_fmt_percent(Decimal("0.0227")), className="num"),
+            html.Td(_fmt_percent(ppc), className="num"),
             html.Td(_fmt_decimal(row.ipc_inicial, 2), className="num"),
             html.Td(_fmt_decimal(row.ipc_actual, 2), className="num"),
             html.Td(_fmt_money(row.ibc_actualizado), className="money"),
@@ -186,8 +192,35 @@ def build_resultado_table(resultado: ResultadoLiquidacion) -> html.Table:
             ]
         )
     )
-    body = html.Tbody([_periodo_row(row) for row in resultado.periodos])
+    body = html.Tbody([_periodo_row(row, resultado.ppc) for row in resultado.periodos])
     return html.Table([head, body], className="resultado-table")
+
+
+def build_resultado_metadata(resultado: ResultadoLiquidacion) -> html.Div:
+    """Muestra la fecha de liquidación y la fuente del IPC usado."""
+    fecha = (
+        resultado.fecha_liquidacion.strftime("%d/%m/%Y")
+        if resultado.fecha_liquidacion
+        else "No indicada (IPC más reciente)"
+    )
+    items = html.Div(
+        [
+            html.Span([html.Strong("Fecha de liquidación: "), fecha]),
+            html.Span([html.Strong("IPC actual: "), resultado.ipc_actual_periodo or "N/D"]),
+            html.Span([html.Strong("Fuente IPC: "), resultado.ipc_actual_fuente or "N/D"]),
+        ],
+        className="resultado-meta",
+    )
+    children: list[object] = [items]
+    if resultado.advertencias:
+        children.append(
+            dbc.Alert(
+                [html.Ul([html.Li(text) for text in resultado.advertencias])],
+                color="warning",
+                className="mt-3",
+            )
+        )
+    return html.Div(children)
 
 
 def build_totales_row(resultado: ResultadoLiquidacion) -> dbc.Row:

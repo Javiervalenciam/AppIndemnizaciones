@@ -56,4 +56,10 @@ def commercial_360_days(start: date, end: date) -> int:
 
 
 def calendar_days(start: date, end: date) -> int:
-    return (end - start).days
+    """Días calendario reales del periodo, contando fecha inicial y final.
+
+    Un periodo de un solo día cuenta 1 y un año completo cuenta 365 o 366.
+    Es la convención por defecto de la aplicación desde que se reemplazó el
+    aproximado comercial 360.
+    """
+    return (end - start).days + 1
